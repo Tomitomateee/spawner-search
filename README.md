@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.1.0.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.2.0.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -17,8 +17,11 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 | ein Chat pro Trade | Markt · Deals · Preise | Bewertungen des gewählten Spielers |
 
 ### Mitte – Spawnerhandel
-- **Markt:** alle Angebote (Verkauf/Ankauf), filterbar nach Seite, Spawner-Typ und Server
-  („Mein Server“ / „Alle Server“). Grüner Punkt = Anbieter ist online.
+- **Markt:** alle Angebote auf deinem Server, höchster Preis zuerst. Filter: Alle / Verkauf /
+  Ankauf und **Meine Gebote** (alle deine eigenen Angebote, auf jedem Server).
+  Grüner Punkt = Anbieter ist online.
+- **Spawner-Filter:** unter den Tabs eine Reihe mit den Spawner-Modellen – Klick zeigt nur diesen
+  Spawner (in Markt, Deals und Preise), nochmal klicken = alle.
   - Fremdes Angebot (Maus drüber): **Handeln** öffnet einen Trade-Chat, **TPA** schickt `/tpa <Name>`.
   - Eigenes Angebot: **✕** löscht das Angebot.
 - **+ Angebot erstellen:** Verkaufen/Kaufen, Spawner (Kuh, Golem, Spinne, Piglin, Skelett,
@@ -26,16 +29,17 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
   (`250k`, `1,5m`, `2.000.000`), Notiz. Zeigt den aktuellen Marktpreis zur Orientierung.
 - **Deals:** abgeschlossene Handel der letzten 30 Tage (Verkäufer → Käufer, Preis). Deals kann
   man nicht eintippen – sie entstehen nur durch einen Vouch im Trade (siehe unten).
-- **Preise:** pro Spawner-Typ Ø-Preis aus den Deals (nach Stückzahl gewichtet), günstigstes
-  Verkaufsangebot und höchstes Ankaufsangebot. Klick zeigt die passenden Angebote.
+- **Preise:** pro Spawner der höchste Ankaufs- und der höchste Verkaufspreis, dazu der Ø-Preis
+  aus den Deals (nach Stückzahl gewichtet). Klick zeigt die passenden Angebote.
 
 ### Links – Trade-Chats
 - Jeder Trade hat seinen eigenen Chat: **Handeln** an einem Angebot öffnet ihn, beim Anbieter
   taucht er automatisch auf. Oben steht, um welches Angebot es geht.
-- **Positiver Vouch** (rechts) an den Handelspartner **schließt den Deal ab**: Er wird
-  eingetragen, das Angebot verschwindet, und der Chat wird bei beiden gelöscht. Ein neuer
-  Deal bekommt einen neuen Chat.
-- **Negativer Vouch** oder **✕** beendet den Trade ohne Deal (Chat wird gelöscht).
+- Die erste Nachricht steht oben, neue kommen darunter.
+- **+ Deal** (positiver Vouch, rechts) **schließt den Deal ab**: Er wird eingetragen, das Angebot
+  verschwindet, und der Chat wird bei beiden gelöscht. Ein neuer Deal bekommt einen neuen Chat.
+- **○ Neutral:** Der Trade kam nicht zustande – kein Deal, Trade-Chat und Angebot bleiben.
+- **− Negativ** oder **✕** beendet den Trade ohne Deal (Chat wird gelöscht).
 - **Namen laufen automatisch mit:** Die Namen im Deal kommen aus den Minecraft-Konten der beiden
   Trade-Partner, nicht aus einem Textfeld. Ein Deal zählt erst, wenn **beide** Clients ihn
   bestätigt haben; das passiert automatisch, sobald einer vouched und beide im Chat geschrieben
@@ -45,12 +49,17 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ### Rechts – Vouches
 - Klick auf ein Angebot, einen Deal oder einen Namen zeigt die Vouches dieses Spielers
   (+ / −, Text, Datum) und ob er gerade online ist und wo.
-- Unten Text eingeben und **+ Positiv** oder **− Negativ** klicken. Pro Spieler zählt ein Vouch
-  von dir – ein neuer ersetzt den alten, **✕** an deinem Vouch löscht ihn.
+- **Vouchen geht nur nach einem Trade** – also nur für den Partner eines offenen Trade-Chats.
+  Text eingeben und **+ Deal**, **○ Neutral** oder **− Neg.** klicken.
+- Vouches stacken nicht: Pro Person zählt nur ihr neuester Vouch. Ein positiver Vouch zählt erst,
+  wenn beide Seiten den Deal bestätigt haben (vorher „unbestätigt“).
 - Ohne Auswahl: Rangliste der Top-Händler. Dein Kopf oben rechts zeigt deine eigenen Vouches.
 
 ### Zahnrad
-Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA), Deckkraft.
+Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA), Deckkraft und
+der **Preiswecker**: pro Spawner einen Preis eintragen, dazu **Kaufen ≤** (Meldung, wenn jemand
+zu diesem Preis oder billiger verkauft) oder **Verkaufen ≥** (wenn jemand so viel oder mehr
+zahlt). Gilt für Angebote auf deinem aktuellen Server.
 
 ## Einstellungen
 
@@ -58,6 +67,7 @@ Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA),
 - `tpaCommand` / `tpaAcceptCommand`: falls dein Server andere Befehle hat (Standard `tpa` / `tpaccept`).
 - `published`: deine Angebote, Deals und Vouches; sie werden nach jedem Verbinden neu gesendet.
 - `trades`: deine offenen Trade-Chats.
+- `alarms`: deine Preiswecker.
 
 ## Wichtig zu wissen
 
@@ -68,8 +78,8 @@ Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA),
   Vouches und Preise sind ein Anhaltspunkt, kein Beweis – handle trotzdem vorsichtig.
 - Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage. Ist dein Partner offline, bekommt er
   beim nächsten Start nur deine letzte Nachricht.
-- Preise sind in der Währung des jeweiligen Servers – darum filtert der Markt standardmäßig auf
-  deinen Server.
+- Preise sind in der Währung des jeweiligen Servers – darum zeigt der Markt deinen Server
+  (bist du auf keinem, alle Server).
 
 ## Bauen
 

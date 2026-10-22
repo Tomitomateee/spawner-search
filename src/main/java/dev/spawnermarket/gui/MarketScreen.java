@@ -1,6 +1,7 @@
 package dev.spawnermarket.gui;
 
 import dev.spawnermarket.Market;
+import dev.spawnermarket.MarketConfig;
 import dev.spawnermarket.MarketConfig.Msg;
 import dev.spawnermarket.MarketConfig.Trade;
 import dev.spawnermarket.Market.Deal;
@@ -33,7 +34,7 @@ public class MarketScreen extends Screen {
 	private static final int ROW_H = 26, ROW_STEP = 29;
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREEN = 0xFF3DDC84, ORANGE = 0xFFE0A030, RED = 0xFFF0506E;
-	private static final int DRAWER_H = 104;
+	private static final int DRAWER_H = 128;
 
 	// Theme colors; set from the selected Theme at the start of every frame.
 	private static int TEXT, TEXT_SOFT, TEXT_FAINT, ICON;
@@ -63,7 +64,7 @@ public class MarketScreen extends Screen {
 	/** A clickable area recorded while drawing; clicks are matched against the last frame's list. */
 	private record Hit(int x, int y, int w, int h, Runnable action) {}
 
-	private enum Mode { MARKET, CREATE }
+	private enum Mode { MARKET, CREATE, ALARMS }
 
 	private final Market market;
 	private final List<Hit> hits = new ArrayList<>();
@@ -75,7 +76,8 @@ public class MarketScreen extends Screen {
 	private int tab;
 	private int sideFilter;
 	private String typeFilter;
-	private boolean allServers;
+	/** "Meine Gebote": only my own offers, on every server. */
+	private boolean myOnly;
 	private int listScroll;
 	private int createType;
 	private boolean createSell = true;
@@ -97,12 +99,12 @@ public class MarketScreen extends Screen {
 	private int vouchScroll;
 
 	private EditBox chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox;
+	private final EditBox[] alarmBoxes = new EditBox[Spawners.ALL.length];
 
 	public MarketScreen(Market market) {
 		super(Component.literal("Spawner Market"));
 		this.market = market;
 		applyTheme(Theme.current(market.config()), market.config().opacity);
-		allServers = Market.server().isEmpty();
 	}
 
 	private void layout() {
@@ -124,6 +126,7 @@ public class MarketScreen extends Screen {
 		amountBox = box(amountBox, 6, "z.B. 16");
 		priceBox = box(priceBox, 14, "z.B. 250k");
 		noteBox = box(noteBox, 60, "z.B. nur heute, Ort…");
+		for (int i = 0; i < alarmBoxes.length; i++) alarmBoxes[i] = box(alarmBoxes[i], 14, "aus");
 	}
 
 	private EditBox box(EditBox old, int maxLength, String hint) {
@@ -177,6 +180,7 @@ public class MarketScreen extends Screen {
 		layout();
 		hits.clear();
 		for (EditBox b : List.of(chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox)) b.visible = false;
+		for (EditBox b : alarmBoxes) b.visible = false;
 
 		panel(g, lx, py, sw, H);
 		renderChat(g, mx, my);
@@ -207,8 +211,9 @@ public class MarketScreen extends Screen {
 
 	// ================================================================ middle: market
 
+	/** The market shows my current server ("" = not on a server: every server). */
 	private String scopeServer() {
-		return allServers ? "" : Market.server();
+		return Market.server();
 	}
 
 	private void renderMarket(GuiGraphics g, int mx, int my) {
@@ -224,6 +229,7 @@ public class MarketScreen extends Screen {
 		hit(px + PW - 28, py + 9, 16, 14, this::onClose);
 
 		if (mode == Mode.CREATE) renderCreate(g, mx, my);
+		else if (mode == Mode.ALARMS) renderAlarms(g, mx, my);
 		else renderMarketTabs(g, mx, my);
 	}
 
@@ -236,7 +242,7 @@ public class MarketScreen extends Screen {
 					listScroll = 0;
 				});
 
-		// Filter row: buy/sell (market only), server scope on the right.
+		// Filter row: buy/sell and "my offers" (market only).
 		int fy = py + 50;
 		if (tab == 0) {
 			String[] sides = { "Alle", "Verkauf", "Ankauf" };
@@ -249,30 +255,38 @@ public class MarketScreen extends Screen {
 				}) + 4;
 			}
 		}
-		String scope = allServers ? "Alle Server" : "Mein Server";
-		int scw = font.width(scope) + 12;
-		chip(g, mx, my, px + PW - 12 - scw, fy, scope, !allServers, () -> {
-			if (Market.server().isEmpty()) {
-				market.say("Du bist auf keinem Server");
-				return;
-			}
-			allServers = !allServers;
-			listScroll = 0;
-		});
-
-		int top = py + 68;
-		if (tab == 0 && typeFilter != null) {
-			Spawners.Type t = Spawners.get(typeFilter);
-			String label = "Nur " + (t == null ? typeFilter : t.name()) + "  ✕";
-			boolean hov = hover(mx, my, px + 12, top - 2, font.width(label) + 4, 12);
-			g.drawString(font, label, px + 14, top, hov ? ACCENT : TEXT_SOFT, false);
-			hit(px + 12, top - 2, font.width(label) + 4, 12, () -> typeFilter = null);
-			top += 12;
+		if (tab == 0) {
+			String mine = "Meine Gebote";
+			int mw = font.width(mine) + 12;
+			chip(g, mx, my, px + PW - 12 - mw, fy, mine, myOnly, () -> {
+				myOnly = !myOnly;
+				listScroll = 0;
+			});
+		} else {
+			g.drawString(font, tab == 1 ? "Abgeschlossene Deals" : "Höchste Preise", px + 14, fy + 3, TEXT_SOFT, false);
 		}
+
+		// Spawner filter: click a model to show only that spawner, click again for all.
+		int n = Spawners.ALL.length, cell = (PW - 24) / n, gx = px + 12 + (PW - 24 - n * cell) / 2, gy = py + 68;
+		for (int i = 0; i < n; i++) {
+			Spawners.Type t = Spawners.ALL[i];
+			int cx = gx + i * cell, cw = cell - 3;
+			boolean sel = t.key().equals(typeFilter), hov = hover(mx, my, cx, gy, cw, 20);
+			if (sel) Glass.roundRect(g, cx, gy, cw, 20, 6, ACCENT_TOP, ACCENT_BOTTOM);
+			else Glass.roundRect(g, cx, gy, cw, 20, 6, hov ? 0x70FFFFFF : 0x30FFFFFF, hov ? 0x50FFFFFF : 0x18FFFFFF);
+			Glass.roundOutline(g, cx, gy, cw, 20, 6, sel ? 0xD0FFFFFF : 0x70FFFFFF);
+			t.draw(g, cx + (cw - 16) / 2, gy + 2, 16);
+			hit(cx, gy, cw, 20, () -> {
+				typeFilter = t.key().equals(typeFilter) ? null : t.key();
+				listScroll = 0;
+			});
+		}
+
+		int top = py + 94;
 		int bottom = py + H - 34;
 		switch (tab) {
-			case 1 -> renderDeals(g, mx, my, top, bottom, market.deals(sv));
-			case 2 -> renderPrices(g, mx, my, top, bottom, market.prices(sv));
+			case 1 -> renderDeals(g, mx, my, top, bottom, filterDeals(market.deals(sv)));
+			case 2 -> renderPrices(g, mx, my, top, bottom, filterPrices(market.prices(sv)));
 			default -> renderOffers(g, mx, my, top, bottom, offers);
 		}
 
@@ -284,14 +298,28 @@ public class MarketScreen extends Screen {
 			centered(g, "+ Angebot erstellen", px + PW / 2, by + 6, WHITE);
 			hit(px + 12, by, PW - 24, 20, this::openCreate);
 		} else {
-			centered(g, tab == 1 ? "Deals entstehen durch einen Vouch" : "Ø aus Deals der letzten 30 Tage",
+			centered(g, tab == 1 ? "Deals entstehen durch einen Vouch" : "Höchster Ankauf / Verkauf · Ø aus Deals",
 					px + PW / 2, by + 6, TEXT_FAINT);
 		}
 	}
 
+	private List<Deal> filterDeals(List<Deal> deals) {
+		if (typeFilter == null) return deals;
+		List<Deal> list = new ArrayList<>();
+		for (Deal d : deals) if (typeFilter.equals(d.type())) list.add(d);
+		return list;
+	}
+
+	private List<PriceStats> filterPrices(List<PriceStats> prices) {
+		if (typeFilter == null) return prices;
+		List<PriceStats> list = new ArrayList<>();
+		for (PriceStats p : prices) if (typeFilter.equals(p.type().key())) list.add(p);
+		return list;
+	}
+
 	private List<Offer> filteredOffers(String sv) {
 		List<Offer> list = new ArrayList<>();
-		for (Offer o : market.offers(sv)) {
+		for (Offer o : myOnly ? market.myOffers() : market.offers(sv)) {
 			if (sideFilter == 1 && !o.sell()) continue;
 			if (sideFilter == 2 && o.sell()) continue;
 			if (typeFilter != null && !typeFilter.equals(o.type())) continue;
@@ -316,8 +344,13 @@ public class MarketScreen extends Screen {
 		int visible = visibleRows(top, bottom);
 		listScroll = Math.max(0, Math.min(listScroll, Math.max(0, list.size() - visible)));
 		if (list.isEmpty()) {
-			centered(g, typeFilter != null || sideFilter != 0 ? "Nichts gefunden" : "Noch keine Angebote", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
-			centered(g, allServers ? "Sei der Erste!" : "auf diesem Server", px + PW / 2, (top + bottom) / 2, TEXT_SOFT);
+			if (myOnly) {
+				centered(g, "Du hast keine Gebote", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
+				centered(g, "„+ Angebot erstellen“", px + PW / 2, (top + bottom) / 2, TEXT_SOFT);
+			} else {
+				centered(g, typeFilter != null || sideFilter != 0 ? "Nichts gefunden" : "Noch keine Angebote", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
+				centered(g, Market.server().isEmpty() ? "Sei der Erste!" : "auf diesem Server", px + PW / 2, (top + bottom) / 2, TEXT_SOFT);
+			}
 		}
 		UUID me = Market.me();
 		g.enableScissor(px + 4, top, px + PW - 4, bottom);
@@ -332,7 +365,7 @@ public class MarketScreen extends Screen {
 			g.drawString(font, clip(o.amount() + "× " + name, w - 96), x + 26, y + 4, TEXT, false);
 			boolean online = market.online(o.owner());
 			Glass.circle(g, x + 26, y + 17, 4, online ? GREEN : 0x80A09CB8);
-			String sub = o.name() + " · " + (o.note().isEmpty() ? (allServers ? o.server() : Spawners.ago(o.ts())) : o.note());
+			String sub = o.name() + " · " + (o.note().isEmpty() ? (myOnly || Market.server().isEmpty() ? o.server() : Spawners.ago(o.ts())) : o.note());
 			g.drawString(font, clip(sub, w - 100), x + 32, y + 15, TEXT_SOFT, false);
 			// Click on the row: show the trader's vouches on the right.
 			hitClipped(x, y, w, ROW_H, top, bottom, () -> selectTarget(o.owner(), o.name()));
@@ -399,13 +432,14 @@ public class MarketScreen extends Screen {
 			Glass.glass(g, x, y, w, ROW_H, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
 			p.type().draw(g, x + 3, y + 3, 20);
 			g.drawString(font, p.type().name() + "-Spawner", x + 26, y + 4, TEXT, false);
-			g.drawString(font, p.dealCount() + (p.dealCount() == 1 ? " Deal" : " Deals") + " · "
-					+ p.offerCount() + (p.offerCount() == 1 ? " Angebot" : " Angebote"), x + 26, y + 15, TEXT_SOFT, false);
-			String avg = p.average() > 0 ? "Ø " + Spawners.format(p.average()) : "Ø –";
-			g.drawString(font, avg, x + w - 6 - font.width(avg), y + 4, ACCENT, false);
-			String low = p.lowestSell() > 0 ? "ab " + Spawners.format(p.lowestSell())
-					: p.highestBuy() > 0 ? "kauft " + Spawners.format(p.highestBuy()) : "";
-			g.drawString(font, low, x + w - 6 - font.width(low), y + 15, TEAL_BOTTOM, false);
+			String avg = (p.average() > 0 ? "Ø " + Spawners.format(p.average()) : "Ø –") + " · "
+					+ p.dealCount() + (p.dealCount() == 1 ? " Deal" : " Deals");
+			g.drawString(font, clip(avg, w - 110), x + 26, y + 15, TEXT_SOFT, false);
+			// Highest prices, like in the market list.
+			String buy = "Ankauf " + (p.highestBuy() > 0 ? Spawners.format(p.highestBuy()) : "–");
+			String sell = "Verkauf " + (p.highestSell() > 0 ? Spawners.format(p.highestSell()) : "–");
+			g.drawString(font, buy, x + w - 6 - font.width(buy), y + 4, ACCENT_TOP, false);
+			g.drawString(font, sell, x + w - 6 - font.width(sell), y + 15, TEAL_BOTTOM, false);
 			// Click: show the offers of this type.
 			hitClipped(x, y, w, ROW_H, top, bottom, () -> {
 				typeFilter = p.type().key();
@@ -463,7 +497,8 @@ public class MarketScreen extends Screen {
 		PriceStats ps = market.price(Market.server(), type.key());
 		String hint = ps == null ? "Noch kein Marktpreis für " + type.name()
 				: "Markt: " + (ps.average() > 0 ? "Ø " + Spawners.format(ps.average()) : "Ø –")
-				+ (ps.lowestSell() > 0 ? " · ab " + Spawners.format(ps.lowestSell()) : "");
+				+ (ps.highestBuy() > 0 ? " · AK " + Spawners.format(ps.highestBuy()) : "")
+				+ (ps.highestSell() > 0 ? " · VK " + Spawners.format(ps.highestSell()) : "");
 		g.drawString(font, clip(hint, PW - 28), px + 14, py + 186, TEXT_FAINT, false);
 		long price = Spawners.parse(priceBox.getValue());
 		int amount = parseInt(amountBox.getValue());
@@ -492,7 +527,7 @@ public class MarketScreen extends Screen {
 		tab = 0;
 		sideFilter = 0;
 		typeFilter = null;
-		allServers = false;
+		myOnly = true;
 		listScroll = 0;
 	}
 
@@ -510,6 +545,7 @@ public class MarketScreen extends Screen {
 	}
 
 	private void backToMarket() {
+		if (mode == Mode.ALARMS) saveAlarms();
 		mode = Mode.MARKET;
 		setFocused(null);
 	}
@@ -568,7 +604,62 @@ public class MarketScreen extends Screen {
 			draggingOpacity = true;
 			setOpacity(lastClickX);
 		});
+		int ay = dy + 102;
+		boolean ha = hover(mx, my, dx + 12, ay, dw - 24, 18);
+		Glass.pill(g, dx + 12, ay, dw - 24, 18, TEAL_TOP, TEAL_BOTTOM, ha);
+		int active = 0;
+		for (MarketConfig.Alarm a : market.config().alarms.values()) if (a.price > 0) active++;
+		centered(g, "Preiswecker" + (active > 0 ? " · " + active + " aktiv" : "") + "  ›", dx + dw / 2, ay + 5, WHITE);
+		hit(dx + 12, ay, dw - 24, 18, this::openAlarms);
 		g.disableScissor();
+	}
+
+	// ---------------------------------------------------------------- price alarms
+
+	private void openAlarms() {
+		drawerOpen = false;
+		drawerAnim = 0;
+		mode = Mode.ALARMS;
+		for (int i = 0; i < alarmBoxes.length; i++) {
+			MarketConfig.Alarm a = market.config().alarms.get(Spawners.ALL[i].key());
+			alarmBoxes[i].setValue(a == null || a.price <= 0 ? "" : Spawners.format(a.price));
+		}
+		setFocused(null);
+	}
+
+	/** One row per spawner: model, name, buy/sell switch and the price to wait for. */
+	private void renderAlarms(GuiGraphics g, int mx, int my) {
+		g.drawString(font, "Preiswecker", px + 14, py + 32, TEXT, false);
+		String sv = Market.server();
+		g.drawString(font, clip(sv.isEmpty() ? "gilt für deinen Server" : "für " + sv, PW - 110), px + 90, py + 32, TEXT_FAINT, false);
+		for (int i = 0; i < Spawners.ALL.length; i++) {
+			Spawners.Type t = Spawners.ALL[i];
+			MarketConfig.Alarm a = market.config().alarms.computeIfAbsent(t.key(), k -> new MarketConfig.Alarm());
+			int y = py + 44 + i * 22, x = px + 8, w = PW - 16;
+			Glass.glass(g, x, y, w, 20, 8, 0x58FFFFFF, 0x38FFFFFF);
+			t.draw(g, x + 3, y + 2, 16);
+			g.drawString(font, t.name(), x + 24, y + 6, TEXT, false);
+			// Kaufen: tell me when someone sells at or below; Verkaufen: when someone buys at or above.
+			String mode = a.buy ? "Kaufen ≤" : "Verkaufen ≥";
+			int cw = font.width("Verkaufen ≥") + 12, cx = x + 88;
+			chip(g, mx, my, cx, y + 3, mode, a.buy, () -> a.buy = !a.buy);
+			field(g, alarmBoxes[i], cx + cw + 4, y + 1, x + w - 4 - (cx + cw + 4));
+		}
+		centered(g, "Leer = aus · Meldung bei deinem Preis", px + PW / 2, py + H - 44, TEXT_FAINT);
+		formButtons(g, mx, my, "Speichern", this::backToMarket);
+	}
+
+	private void saveAlarms() {
+		int active = 0;
+		for (int i = 0; i < alarmBoxes.length; i++) {
+			MarketConfig.Alarm a = market.config().alarms.computeIfAbsent(Spawners.ALL[i].key(), k -> new MarketConfig.Alarm());
+			long p = Spawners.parse(alarmBoxes[i].getValue());
+			a.price = Math.max(0, p);
+			if (a.price > 0) active++;
+		}
+		market.config().save();
+		market.checkAlarms();
+		market.say(active == 0 ? "Preiswecker aus" : active + (active == 1 ? " Preiswecker aktiv" : " Preiswecker aktiv"));
 	}
 
 	private void setOpacity(int mx) {
@@ -655,13 +746,14 @@ public class MarketScreen extends Screen {
 
 		List<Msg> msgs = trade.messages;
 		buildChatLines(trade.id, msgs, sw - 24);
+		// The first message sits at the top; once the chat is full it follows the newest one.
 		int lineH = 10, visible = Math.max(1, (bottom - top) / lineH);
 		int total = chatLines.size();
 		chatScroll = Math.max(0, Math.min(chatScroll, Math.max(0, total - visible)));
 		g.enableScissor(lx + 4, top, lx + sw - 4, bottom);
 		int first = Math.max(0, total - visible - chatScroll);
-		int last = total - chatScroll;
-		int y = bottom - (last - first) * lineH;
+		int last = Math.min(total, first + visible);
+		int y = top;
 		for (int i = first; i < last; i++, y += lineH) g.drawString(font, chatLines.get(i).text, lx + 12, y + 1, TEXT, false);
 		g.disableScissor();
 
@@ -799,16 +891,22 @@ public class MarketScreen extends Screen {
 		head(g, target, targetName, vx + 22, cy + 6, 20);
 		g.drawString(font, clip(targetName, sw - 70), vx + 47, cy + 6, TEXT, false);
 		int[] score = market.score(target);
-		String pos = "+" + score[0], neg = "−" + score[1];
-		g.drawString(font, pos, vx + 47, cy + 18, GREEN, false);
-		g.drawString(font, neg, vx + 47 + font.width(pos) + 6, cy + 18, RED, false);
+		String pos = "+" + score[0], neu = "○" + score[1], neg = "−" + score[2];
+		int sx0 = vx + 47;
+		g.drawString(font, pos, sx0, cy + 18, GREEN, false);
+		sx0 += font.width(pos) + 5;
+		g.drawString(font, neu, sx0, cy + 18, TEXT_SOFT, false);
+		sx0 += font.width(neu) + 5;
+		g.drawString(font, neg, sx0, cy + 18, RED, false);
 		boolean online = market.online(target);
 		String where = !online ? "offline" : market.sameServer(target) ? "hier" : market.serverOf(target);
-		String whereC = clip(where, sw - 80 - font.width(pos + neg));
+		String whereC = clip(where, vx + sw - 18 - (sx0 + font.width(neg)));
 		g.drawString(font, whereC, vx + sw - 14 - font.width(whereC), cy + 18, online ? GREEN : TEXT_FAINT, false);
 
 		// The list.
-		boolean canVouch = !target.equals(me);
+		// Vouching only works for the partner of an open trade.
+		Trade trade = target.equals(me) ? null : market.tradeWith(target);
+		boolean canVouch = trade != null;
 		int top = cy + 38, bottom = canVouch ? py + H - 54 : py + H - 22;
 		List<Vouch> list = market.vouchesFor(target);
 		vouchScroll = Math.max(0, Math.min(vouchScroll, Math.max(0, list.size() - 1)));
@@ -825,9 +923,13 @@ public class MarketScreen extends Screen {
 			int x = vx + 8, w = sw - 16;
 			boolean hov = hover(mx, my, x, y, w, h) && my < bottom;
 			Glass.glass(g, x, y, w, h, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
-			Glass.roundRect(g, x + 5, y + 4, 9, 9, 4.5f, v.positive() ? GREEN : RED);
-			centered(g, v.positive() ? "+" : "−", x + 10, y + 5, WHITE);
-			g.drawString(font, clip(v.fromName(), w - 70), x + 18, y + 5, TEXT, false);
+			boolean counts = market.counts(v);
+			int badge = v.rating() > 0 ? (counts ? GREEN : Glass.argb(0x80, GREEN)) : v.rating() == 0 ? 0xFF9A98AC : RED;
+			Glass.roundRect(g, x + 5, y + 4, 9, 9, 4.5f, badge);
+			centered(g, v.rating() > 0 ? "+" : v.rating() == 0 ? "○" : "−", x + 10, y + 5, WHITE);
+			// A positive vouch counts once both sides confirmed the deal.
+			String from = counts ? v.fromName() : v.fromName() + " (unbestätigt)";
+			g.drawString(font, clip(from, w - 70), x + 18, y + 5, counts ? TEXT : TEXT_FAINT, false);
 			String ago = Spawners.ago(v.ts());
 			g.drawString(font, ago, x + w - 6 - font.width(ago), y + 5, TEXT_FAINT, false);
 			for (int j = 0; j < lines.size(); j++) g.drawString(font, lines.get(j), x + 8, y + 16 + j * 10, TEXT_SOFT, false);
@@ -841,27 +943,29 @@ public class MarketScreen extends Screen {
 		g.disableScissor();
 
 		if (!canVouch) {
-			centered(g, "Das sind deine Vouches", vx + sw / 2, py + H - 16, TEXT_FAINT);
+			centered(g, target.equals(me) ? "Das sind deine Vouches" : "Vouchen geht nur nach einem Trade",
+					vx + sw / 2, py + H - 16, TEXT_FAINT);
 			return;
 		}
-		// Write a vouch: text, then + or −.
+		// Write a vouch: text, then +, neutral or −.
 		int iy = py + H - 50;
 		Glass.shadow(g, vx + 10, iy, sw - 20, 18, 9, 60);
 		Glass.roundRect(g, vx + 10, iy, sw - 20, 18, 9, PILL_TOP, PILL_BOTTOM);
 		Glass.roundOutline(g, vx + 10, iy, sw - 20, 18, 9, vouchBox.isFocused() ? ACCENT_TOP : 0xC0FFFFFF);
 		place(vouchBox, vx + 10, iy, sw - 20);
-		vouchBox.setHint(Component.literal(market.tradeWith(target) != null ? "Vouch schließt den Deal ab…" : "Wie lief der Handel?")
-				.withColor(0xFF8E8AA0));
+		vouchBox.setHint(Component.literal("Wie lief der Trade?").withColor(0xFF8E8AA0));
 		hit(vx + 10, iy, sw - 20, 18, () -> setFocused(vouchBox));
-		Vouch mine = market.myVouchFor(target);
-		int bw = (sw - 24 - 6) / 2, by = py + H - 28;
-		boolean hp = hover(mx, my, vx + 12, by, bw, 20), hn = hover(mx, my, vx + 18 + bw, by, bw, 20);
-		Glass.pill(g, vx + 12, by, bw, 20, 0xFF5BE39A, 0xFF2FBF6A, hp || (mine != null && mine.positive()));
-		centered(g, "+ Positiv", vx + 12 + bw / 2, by + 6, WHITE);
-		Glass.pill(g, vx + 18 + bw, by, bw, 20, 0xFFF27A8E, 0xFFD43A57, hn || (mine != null && !mine.positive()));
-		centered(g, "− Negativ", vx + 18 + bw + bw / 2, by + 6, WHITE);
-		hit(vx + 12, by, bw, 20, () -> submitVouch(true));
-		hit(vx + 18 + bw, by, bw, 20, () -> submitVouch(false));
+		// + closes the deal, ○ = trade didn't happen (stays open), − = no deal, chat closes.
+		int bw = (sw - 24 - 8) / 3, by = py + H - 28;
+		int[] ratings = { 1, 0, -1 };
+		String[] labels = { "+ Deal", "○ Neutral", "− Neg." };
+		int[][] colors = { { 0xFF5BE39A, 0xFF2FBF6A }, { 0xFFB8B6C8, 0xFF8A88A0 }, { 0xFFF27A8E, 0xFFD43A57 } };
+		for (int i = 0; i < 3; i++) {
+			int bx = vx + 12 + i * (bw + 4), rating = ratings[i];
+			Glass.pill(g, bx, by, bw, 20, colors[i][0], colors[i][1], hover(mx, my, bx, by, bw, 20));
+			centered(g, clip(labels[i], bw - 4), bx + bw / 2, by + 6, WHITE);
+			hit(bx, by, bw, 20, () -> submitVouch(rating));
+		}
 	}
 
 	private void renderTopTraders(GuiGraphics g, int mx, int my, int top, int bottom) {
@@ -886,7 +990,7 @@ public class MarketScreen extends Screen {
 			head(g, u, name, x + 17, y + 4, 11);
 			g.drawString(font, clip(name, w - 70), x + 32, y + 6, TEXT, false);
 			int[] s = market.score(u);
-			String pos = "+" + s[0], neg = "−" + s[1];
+			String pos = "+" + s[0], neg = "−" + s[2];
 			g.drawString(font, neg, x + w - 6 - font.width(neg), y + 6, RED, false);
 			g.drawString(font, pos, x + w - 10 - font.width(neg) - font.width(pos), y + 6, GREEN, false);
 			hitClipped(x, y, w, 19, top, bottom, () -> selectTarget(u, name));
@@ -907,17 +1011,15 @@ public class MarketScreen extends Screen {
 		setFocused(null);
 	}
 
-	private void submitVouch(boolean positive) {
+	private void submitVouch(int rating) {
 		if (target == null) return;
 		Trade trade = currentTrade();
-		boolean closesTrade = market.tradeWith(target) != null;
-		String err = market.vouch(target, targetName, positive, vouchBox.getValue(), trade);
+
+		String err = market.vouch(target, targetName, rating, vouchBox.getValue(), trade);
 		if (err != null) {
 			market.say(err);
 			return;
 		}
-		// With an open trade, the market already says whether the deal was recorded.
-		if (!closesTrade) market.say("Vouch für " + targetName + " gespeichert");
 		if (trade != null && market.trade(trade.id) == null) openTrade = null;
 		vouchBox.setValue("");
 		setFocused(null);

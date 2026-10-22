@@ -9,9 +9,11 @@ import net.minecraft.client.multiplayer.PlayerInfo;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -19,7 +21,7 @@ import java.util.UUID;
  * online where. Fed by {@link MarketRelay}; only touched on the game thread.
  *
  * <p>Deals can't be typed in: a trade chat is opened from an offer, and the deal is closed by
- * vouching the other player. Both clients then publish the deal under their own identity, and
+ * vouching the other player (vouching is only possible in a trade). Both clients then publish the deal under their own identity, and
  * only deals confirmed by seller and buyer count — so nobody can put someone else's name on one.
  */
 public final class Market implements MarketRelay.Handler {
@@ -30,7 +32,10 @@ public final class Market implements MarketRelay.Handler {
 	public record Deal(String trade, UUID seller, String sellerName, UUID buyer, String buyerName, String server,
 	                   String type, int amount, long price, long ts) {}
 
-	public record Vouch(UUID target, String targetName, UUID from, String fromName, boolean positive, String text, long ts) {}
+	/** {@code rating}: 1 positive, 0 neutral (trade didn't happen), -1 negative. */
+	public record Vouch(UUID target, String targetName, UUID from, String fromName, int rating, String trade, String text, long ts) {
+		public boolean positive() { return rating > 0; }
+	}
 
 	public record TpaRequest(UUID from, String name, long at) {}
 
@@ -51,6 +56,8 @@ public final class Market implements MarketRelay.Handler {
 	private final Map<UUID, Presence> presence = new HashMap<>();
 	private final Map<UUID, String> names = new HashMap<>();
 	private final List<TpaRequest> tpas = new ArrayList<>();
+	/** Offers I was already alarmed about this session. */
+	private final Set<String> alarmed = new HashSet<>();
 	/** Which trade chat the GUI is showing right now (no unread count for it). */
 	private String viewing = "";
 	private String message;
@@ -173,8 +180,37 @@ public final class Market implements MarketRelay.Handler {
 			if (!server.isEmpty() && !server.equals(o.server)) continue;
 			list.add(o);
 		}
-		list.sort(Comparator.comparingLong(Offer::ts).reversed());
+		// Highest price first, newest first among equal prices.
+		list.sort(Comparator.comparingLong(Offer::price).thenComparingLong(Offer::ts).reversed());
 		return list;
+	}
+
+	/** All my own offers, on every server. */
+	public List<Offer> myOffers() {
+		UUID me = me();
+		List<Offer> list = new ArrayList<>();
+		for (Offer o : offers("")) if (o.owner.equals(me)) list.add(o);
+		return list;
+	}
+
+	/** Ids of trades whose deal both sides confirmed (no age limit; used to check vouches). */
+	private Set<String> confirmedTrades() {
+		Map<String, Deal> bySeller = new HashMap<>();
+		Set<String> out = new HashSet<>();
+		for (Map.Entry<String, Deal> e : dealRecords.entrySet()) {
+			Deal d = e.getValue();
+			if (e.getKey().endsWith("/" + d.seller)) bySeller.put(d.trade, d);
+		}
+		for (Map.Entry<String, Deal> e : dealRecords.entrySet()) {
+			Deal d = e.getValue(), s = bySeller.get(d.trade);
+			if (e.getKey().endsWith("/" + d.buyer) && s != null && s.buyer.equals(d.buyer) && s.seller.equals(d.seller)) out.add(d.trade);
+		}
+		return out;
+	}
+
+	/** A positive vouch only counts when its trade's deal is confirmed by both sides. */
+	public boolean counts(Vouch v) {
+		return !v.positive() || confirmedTrades().contains(v.trade);
 	}
 
 	/** Deals confirmed by both seller and buyer, newest first. */
@@ -201,7 +237,7 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	/** Price overview for one spawner type. -1 = unknown. */
-	public record PriceStats(Spawners.Type type, long average, int dealCount, long lowestSell, long highestBuy, int offerCount) {}
+	public record PriceStats(Spawners.Type type, long average, int dealCount, long highestSell, long highestBuy, int offerCount) {}
 
 	public List<PriceStats> prices(String server) {
 		List<Deal> ds = deals(server);
@@ -217,16 +253,16 @@ public final class Market implements MarketRelay.Handler {
 				pieces += d.amount;
 				count++;
 			}
-			long low = -1, high = -1;
+			long sell = -1, buy = -1;
 			int offerCount = 0;
 			for (Offer o : os) {
 				if (!o.type.equals(t.key())) continue;
 				offerCount++;
-				if (o.sell && (low < 0 || o.price < low)) low = o.price;
-				if (!o.sell && o.price > high) high = o.price;
+				if (o.sell && o.price > sell) sell = o.price;
+				if (!o.sell && o.price > buy) buy = o.price;
 			}
 			if (count == 0 && offerCount == 0) continue;
-			out.add(new PriceStats(t, pieces > 0 ? sum / pieces : -1, count, low, high, offerCount));
+			out.add(new PriceStats(t, pieces > 0 ? sum / pieces : -1, count, sell, buy, offerCount));
 		}
 		// Most traded first.
 		out.sort(Comparator.comparingInt((PriceStats p) -> p.dealCount + p.offerCount).reversed());
@@ -245,15 +281,17 @@ public final class Market implements MarketRelay.Handler {
 		return list;
 	}
 
-	/** {positive, negative} */
+	/** {positive, neutral, negative}; one vouch per person (the newest), positives only with a confirmed deal. */
 	public int[] score(UUID target) {
-		int pos = 0, neg = 0;
+		Set<String> confirmed = confirmedTrades();
+		int pos = 0, neu = 0, neg = 0;
 		for (Vouch v : vouches.values()) {
 			if (!v.target.equals(target)) continue;
-			if (v.positive) pos++;
+			if (v.rating > 0) { if (confirmed.contains(v.trade)) pos++; }
+			else if (v.rating == 0) neu++;
 			else neg++;
 		}
-		return new int[] { pos, neg };
+		return new int[] { pos, neu, neg };
 	}
 
 	public Vouch myVouchFor(UUID target) {
@@ -262,8 +300,12 @@ public final class Market implements MarketRelay.Handler {
 
 	/** Players with the most positive vouches, for the right panel when nobody is selected. */
 	public List<UUID> topVouched(int max) {
+		Set<String> confirmed = confirmedTrades();
 		Map<UUID, Integer> net = new HashMap<>();
-		for (Vouch v : vouches.values()) net.merge(v.target, v.positive ? 1 : -1, Integer::sum);
+		for (Vouch v : vouches.values()) {
+			if (v.rating > 0 && !confirmed.contains(v.trade)) continue;
+			net.merge(v.target, v.rating, Integer::sum);
+		}
 		List<UUID> list = new ArrayList<>(net.keySet());
 		list.sort(Comparator.comparingInt((UUID u) -> net.get(u)).reversed());
 		return list.size() > max ? list.subList(0, max) : list;
@@ -462,28 +504,39 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	/**
-	 * Vouches a player. If a trade with them is open, the vouch closes it: positive = the deal
-	 * went through (recorded for both), negative = it didn't (no deal). Either way the chat goes.
+	 * Vouches the other player of an open trade (only possible in a trade; my newest vouch for a
+	 * player replaces the older one, so they don't stack). Positive: the deal went through, it is
+	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, chat and offer
+	 * stay. Negative: no deal, the chat is deleted.
 	 */
-	public String vouch(UUID target, String targetName, boolean positive, String text, Trade trade) {
+	public String vouch(UUID target, String targetName, int rating, String text, Trade trade) {
 		if (target.equals(me())) return "Du kannst dich nicht selbst vouchen";
+		if (trade == null || !target.toString().equals(trade.other(me().toString()))) trade = tradeWith(target);
+		if (trade == null) return "Vouchen geht nur nach einem Trade";
 		text = clean(text, 120);
 		if (text.length() < 3) return "Schreib kurz, wie der Handel lief";
+		rating = Integer.signum(rating);
 		JsonObject v = new JsonObject();
 		v.addProperty("u", me().toString());
 		v.addProperty("nm", myName());
 		v.addProperty("to", target.toString());
 		v.addProperty("tn", targetName);
-		v.addProperty("pos", positive);
+		v.addProperty("r", rating);
+		v.addProperty("pos", rating > 0);
+		v.addProperty("tr", trade.id);
 		v.addProperty("tx", text);
 		v.addProperty("ts", System.currentTimeMillis());
 		publishMine("v/" + target + "/" + me(), v);
-		if (trade == null || !target.toString().equals(trade.other(me().toString()))) trade = tradeWith(target);
-		if (trade == null) return null;
-		if (positive) publishDeal(trade);
-		sendTrade(trade, "close", "", positive);
+		if (rating == 0) {
+			addMessage(trade, new Msg("", "", "Neutraler Vouch: kein Deal, der Trade bleibt offen.", System.currentTimeMillis()));
+			config.save();
+			say("Neutraler Vouch für " + targetName + " – Trade bleibt offen");
+			return null;
+		}
+		if (rating > 0) publishDeal(trade);
+		sendTrade(trade, "close", "", rating > 0);
 		forgetTrade(trade);
-		say(positive ? "Deal mit " + targetName + " abgeschlossen" : "Trade mit " + targetName + " beendet (kein Deal)");
+		say(rating > 0 ? "Deal mit " + targetName + " abgeschlossen" : "Trade mit " + targetName + " beendet (kein Deal)");
 		return null;
 	}
 
@@ -601,8 +654,31 @@ public final class Market implements MarketRelay.Handler {
 		int n = o.get("n").getAsInt();
 		long p = o.get("p").getAsLong();
 		if (type == null || n < 1 || n > 100_000 || p < 1 || p > Spawners.MAX_PRICE || !str(o, "id").equals(part[2])) return;
-		offers.put(key, new Offer(part[2], u, playerName(str(o, "nm")), clean(str(o, "sv"), 64), type.key(),
-				o.get("s").getAsBoolean(), n, p, clean(str(o, "no"), 60), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong())));
+		Offer offer = new Offer(part[2], u, playerName(str(o, "nm")), clean(str(o, "sv"), 64), type.key(),
+				o.get("s").getAsBoolean(), n, p, clean(str(o, "no"), 60), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong()));
+		offers.put(key, offer);
+		checkAlarm(offer);
+	}
+
+	/** Checks every offer against the price alarms again (after they were changed). */
+	public void checkAlarms() {
+		alarmed.clear();
+		for (Offer o : offers("")) checkAlarm(o);
+	}
+
+	private void checkAlarm(Offer o) {
+		MarketConfig.Alarm a = config.alarms.get(o.type);
+		if (a == null || a.price <= 0 || o.owner.equals(me())) return;
+		if (System.currentTimeMillis() - o.ts > OFFER_MAX_AGE) return;
+		// Prices are in each server's own money: only offers on my server.
+		String sv = server();
+		if (sv.isEmpty() || !sv.equals(o.server)) return;
+		boolean hit = a.buy ? o.sell && o.price <= a.price : !o.sell && o.price >= a.price;
+		if (!hit || !alarmed.add(o.owner + "/" + o.id + "/" + o.price)) return;
+		Spawners.Type t = Spawners.get(o.type);
+		String what = o.amount + "× " + (t == null ? o.type : t.name()) + " je " + Spawners.format(o.price);
+		notifier.notify("Preiswecker", (o.sell ? o.name + " verkauft " : o.name + " kauft ") + what, o.owner);
+		say("Preiswecker: " + what + " (" + o.name + ")");
 	}
 
 	private void onDeal(String[] part, JsonObject o) {
@@ -640,7 +716,8 @@ public final class Market implements MarketRelay.Handler {
 		if (!str(o, "to").equals(part[1]) || target.equals(from)) return;
 		String tn = playerName(str(o, "tn"));
 		if (!tn.isEmpty() && !target.equals(me())) names.putIfAbsent(target, tn);
-		vouches.put(key, new Vouch(target, tn, from, playerName(str(o, "nm")), o.get("pos").getAsBoolean(),
+		int rating = o.has("r") ? Integer.signum(o.get("r").getAsInt()) : o.get("pos").getAsBoolean() ? 1 : -1;
+		vouches.put(key, new Vouch(target, tn, from, playerName(str(o, "nm")), rating, clean(str(o, "tr"), 10),
 				clean(str(o, "tx"), 120), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong())));
 	}
 

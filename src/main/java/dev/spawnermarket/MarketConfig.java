@@ -33,6 +33,8 @@ public class MarketConfig {
 	public Map<String, Trade> trades = new LinkedHashMap<>();
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
 	public List<String> closedTrades = new ArrayList<>();
+	/** Price alarm per spawner type key. */
+	public Map<String, Alarm> alarms = new LinkedHashMap<>();
 	/** My offers, deals and vouches by relay topic, so they survive a broker restart. */
 	public Map<String, JsonObject> published = new LinkedHashMap<>();
 
@@ -44,6 +46,7 @@ public class MarketConfig {
 					if (cfg.published == null) cfg.published = new LinkedHashMap<>();
 					if (cfg.trades == null) cfg.trades = new LinkedHashMap<>();
 					if (cfg.closedTrades == null) cfg.closedTrades = new ArrayList<>();
+					if (cfg.alarms == null) cfg.alarms = new LinkedHashMap<>();
 					return cfg;
 				}
 			}
@@ -82,6 +85,15 @@ public class MarketConfig {
 		public long lastActivity() {
 			return messages.isEmpty() ? created : messages.get(messages.size() - 1).ts;
 		}
+	}
+
+	/**
+	 * Notifies me when a spawner reaches my price: {@code buy} = a sell offer at or below
+	 * {@code price}, otherwise a buy offer at or above it.
+	 */
+	public static class Alarm {
+		public long price;
+		public boolean buy = true;
 	}
 
 	/** One chat line; {@code from} empty = a note from the mod itself. */
