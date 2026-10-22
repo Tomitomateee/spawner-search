@@ -27,10 +27,12 @@ installiert hast, reicht meist).
 1. **Webhooks anlegen** – für jeden der vier Kanäle in Discord:
    Kanal → ⚙️ *Kanal bearbeiten* → *Integrationen* → *Webhooks* → *Neuer Webhook* →
    *Webhook-URL kopieren*.
-2. `spawner-market-discord.jar` und `start.bat` (Windows) bzw. `start.sh` (Linux) in einen
-   eigenen Ordner legen.
-3. Einmal `start.bat` doppelklicken. Es legt `bridge.json` an und beendet sich.
-4. `bridge.json` mit einem Editor öffnen und die vier URLs eintragen:
+2. Die Zip in einen eigenen Ordner entpacken (`spawner-market-discord.jar`, `start.bat` /
+   `start.sh`, `einrichten.bat`).
+3. `einrichten.bat` doppelklicken: Es fragt nacheinander nach den vier URLs (einfügen mit
+   Rechtsklick) und nach deinem Server und speichert alles in `bridge.json`. Oder von Hand:
+   einmal `start.bat` starten (legt `bridge.json` an) und die Datei mit einem Editor füllen:
+4. So sieht `bridge.json` dann aus:
 
    ```json
    {
