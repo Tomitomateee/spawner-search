@@ -14,12 +14,13 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 
 | Links: **Trade-Chats** | Mitte: **Spawnerhandel** | Rechts: **Vouches** |
 |---|---|---|
-| ein Chat pro Trade | Markt · Deals · Preise | Bewertungen des gewählten Spielers |
+| ein Chat pro Trade | Verkauf · Ankauf · Deals · Preise | Bewertungen des gewählten Spielers |
 
 ### Mitte – Spawnerhandel
-- **Markt:** alle Angebote auf deinem Server, höchster Preis zuerst. Filter: Alle / Verkauf /
-  Ankauf. Unten links **Meine Gebote** (alle deine eigenen Angebote, auf jedem Server), rechts
-  daneben **+ Angebot**.
+- **Verkauf** und **Ankauf** sind getrennte Listen der Angebote auf deinem Server: Unter Verkauf
+  stehen die Spieler, die Spawner verkaufen (günstigster zuerst), unter Ankauf die, die welche
+  suchen (höchstes Gebot zuerst). Rechts in jeder Zeile der Gesamtpreis. Unten links
+  **Meine Gebote** (nur deine eigenen Angebote, auf jedem Server), rechts daneben **+ Angebot**.
   Grüner Punkt = Anbieter ist online.
 - **Spawner-Filter:** unter den Tabs eine Reihe mit den Spawner-Modellen – Klick zeigt nur diesen
   Spawner (in Markt, Deals und Preise), nochmal klicken = alle.
@@ -69,16 +70,17 @@ auf deinem aktuellen Server und kommt als Banner, unabhängig von den Angebots-F
 ### Benachrichtigungen
 Kleine Banner oben im Bild (mit Ton), wenn jemand ein **neues Angebot** aufmacht: Spawner, Anzahl,
 Preis pro Stück, Verkauf/Ankauf, von wem und wie der Preis zum Schnitt der Deals steht. Dazu
-neue Trades an deinen Angeboten, Trade-Nachrichten, bestätigte/beendete Trades und TPA-Anfragen.
+**jeder Kauf/Verkauf** (fertiger Deal: Verkäufer → Käufer), neue Trades an deinen Angeboten,
+Trade-Nachrichten, bestätigte/beendete Trades und TPA-Anfragen. Die Banner liegen über allem,
+auch über Inventar, Kisten und dem Spawnerhandel-Menü.
 Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 - **Angebote:** Verkauf/Ankauf, nur dein Server, nur gute Preise, nur bestimmte Spawner.
-- **Trades:** neue Trades, Nachrichten, Deal/Trade beendet, TPA, alle neuen Deals auf dem Markt.
-- **Anzeige:** Position (links/Mitte/rechts), Dauer, Ton, auch über anderen Menüs.
+- **Trades:** neue Trades, Nachrichten, Deal/Trade beendet, TPA, jeder Kauf/Verkauf auf dem Markt.
+- **Anzeige:** Position (links/Mitte/rechts), Dauer, Ton, über anderen Menüs, über dem
+  Spawnerhandel-Menü.
 - **Wecker:** erklärt den Preiswecker, zeigt welche gestellt sind und führt zum Einstellen.
 - Unter jeder Einstellung steht kurz, was sie macht. **Test** zeigt Beispiel-Banner passend zum
   offenen Tab – im Tab „Wecker“ (und oben auf der Preiswecker-Seite) einen Preiswecker-Banner.
-
-Solange das Spawnerhandel-Menü offen ist, kommen keine Banner – es zeigt alles selbst.
 
 ## Einstellungen
 
@@ -95,10 +97,12 @@ Solange das Spawnerhandel-Menü offen ist, kommen keine Banner – es zeigt alle
   Angebote, Vouches und (mit mehr Aufwand) auch Deals fälschen.** Mit der normalen Mod geht das
   nicht. Wirklich fälschungssicher wäre es nur mit einem eigenen Server mit Login.
   Vouches und Preise sind ein Anhaltspunkt, kein Beweis – handle trotzdem vorsichtig.
-- Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage. Ist dein Partner offline, bekommt er
-  beim nächsten Start nur deine letzte Nachricht.
+- Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage.
 - Trade-Chats stehen in der Reihenfolge, in der die Nachrichten ankommen – die Uhren der Spieler
   gehen nie genau gleich, nach Absenderzeit sortiert landeten Antworten sonst über der Frage.
+- Das Relay hebt pro Spieler nur die letzte Nachricht auf. Darum reisen mit jeder Nachricht deine
+  letzten 5 mit: Was dein Partner verpasst hat (offline, Verbindung kurz weg), wird mit deiner
+  nächsten Nachricht an der richtigen Stelle nachgetragen.
 - Preise sind in der Währung des jeweiligen Servers – darum zeigt der Markt deinen Server
   (bist du auf keinem, alle Server).
 

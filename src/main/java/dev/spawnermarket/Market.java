@@ -1,5 +1,6 @@
 package dev.spawnermarket;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import dev.spawnermarket.MarketConfig.Msg;
 import dev.spawnermarket.MarketConfig.Trade;
@@ -46,6 +47,8 @@ public final class Market implements MarketRelay.Handler {
 	private static final long HEARTBEAT_MS = 120_000L;
 	/** Offers and deals older than this are re-sends (after a reconnect), not news. */
 	private static final long FRESH_MS = 15 * 60_000L;
+	/** How many of my earlier messages travel along with each new one. */
+	private static final int HISTORY = 5;
 	private static final int CHAT_KEEP = 150, CLOSED_KEEP = 300;
 
 	private final MarketConfig config;
@@ -475,7 +478,8 @@ public final class Market implements MarketRelay.Handler {
 		long now = System.currentTimeMillis();
 		if (now - lastChatAt < 500) return "Nicht so schnell";
 		lastChatAt = now;
-		sendTrade(t, "msg", text, false);
+		// Same time in the packet and in my chat, so the copy in the next packet's history matches.
+		sendTrade(t, "msg", text, false, now);
 		addSent(t, text, now);
 		return null;
 	}
@@ -490,9 +494,14 @@ public final class Market implements MarketRelay.Handler {
 		return chatVersion;
 	}
 
-	/** Every trade message carries the offer, so the first one that arrives can open the chat. */
 	private void sendTrade(Trade t, String kind, String text, boolean deal) {
-		String to = t.other(me().toString());
+		sendTrade(t, kind, text, deal, System.currentTimeMillis());
+	}
+
+	/** Every trade message carries the offer, so the first one that arrives can open the chat. */
+	private void sendTrade(Trade t, String kind, String text, boolean deal, long ts) {
+		String me = me().toString();
+		String to = t.other(me);
 		JsonObject o = new JsonObject();
 		o.addProperty("u", me().toString());
 		o.addProperty("nm", myName());
@@ -509,9 +518,23 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("n", t.amount);
 		o.addProperty("p", t.price);
 		o.addProperty("sv", t.server);
-		o.addProperty("ts", System.currentTimeMillis());
+		o.addProperty("ts", ts);
+		if (kind.equals("msg")) {
+			// My last messages ride along (oldest first): the broker only keeps the newest one,
+			// so whatever they missed – offline, a dropped connection – arrives with the next.
+			List<Msg> mine = new ArrayList<>();
+			for (Msg m : t.messages) if (me.equals(m.from) && m.sent > 0 && m.sent != ts) mine.add(m);
+			JsonArray h = new JsonArray();
+			for (Msg m : mine.subList(Math.max(0, mine.size() - HISTORY), mine.size())) {
+				JsonObject e = new JsonObject();
+				e.addProperty("tx", m.text);
+				e.addProperty("ts", m.sent);
+				h.add(e);
+			}
+			o.add("h", h);
+		}
 		// Retained: the newest message also reaches them if they're offline right now.
-		relay.publish("m/" + to + "/" + me(), o, true);
+		relay.publish("m/" + to + "/" + me, o, true);
 	}
 
 	/** Publishes my side of the deal; it counts once the other side has published theirs. */
@@ -882,23 +905,47 @@ public final class Market implements MarketRelay.Handler {
 		}
 
 		if (kind.equals("msg")) {
-			long sent = o.get("ts").getAsLong();
-			String text = clean(str(o, "tx"), 200);
-			String from = u.toString();
-			// Recognized by the sender's clock; chats from 1.1.0 only have min(arrival, sent) in ts.
-			boolean known = t.messages.stream().anyMatch(m -> from.equals(m.from) && (m.sent == sent || (m.sent == 0 && m.ts == sent)));
-			if (!text.isEmpty() && !known) {
-				// Always at the end: the sender's clock can be seconds off, and sorting by it put
-				// replies above the message they answer. One the broker kept while I was away is
-				// newer than everything already in the chat as well.
-				addMessage(t, new Msg(from, name, text, arrivalTime(t), sent));
-				if (!id.equals(viewing)) {
-					t.unread++;
-					if (!stored) notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, u, name, text, null, null, t));
+			// First the messages of theirs I may have missed, then the new one.
+			if (o.has("h") && o.get("h").isJsonArray()) {
+				JsonArray h = o.getAsJsonArray("h");
+				for (int i = Math.max(0, h.size() - HISTORY); i < h.size(); i++) {
+					// A broken entry must not cost the new message.
+					if (!h.get(i).isJsonObject() || !h.get(i).getAsJsonObject().has("ts")) continue;
+					JsonObject e = h.get(i).getAsJsonObject();
+					receive(t, u, name, clean(str(e, "tx"), 200), e.get("ts").getAsLong(), stored, true);
 				}
 			}
+			receive(t, u, name, clean(str(o, "tx"), 200), o.get("ts").getAsLong(), stored, false);
 		}
 		config.save();
+	}
+
+	/**
+	 * Adds one of their messages unless I have it already. A new one goes at the end: the sender's
+	 * clock can be seconds off, and sorting by it put replies above the message they answer. One
+	 * I missed ({@code late}, from the history of a later message) goes right before the next of
+	 * their messages I do have – their own messages can be compared by their own clock.
+	 */
+	private void receive(Trade t, UUID u, String name, String text, long sent, boolean stored, boolean late) {
+		String from = u.toString();
+		// Recognized by the sender's clock; chats from 1.1.0 only have min(arrival, sent) in ts.
+		boolean known = t.messages.stream().anyMatch(m -> from.equals(m.from) && (m.sent == sent || (m.sent == 0 && m.ts == sent)));
+		if (text.isEmpty() || known) return;
+		int at = t.messages.size();
+		for (int i = 0; late && i < t.messages.size(); i++) {
+			Msg m = t.messages.get(i);
+			if (from.equals(m.from) && m.sent > sent) {
+				at = i;
+				break;
+			}
+		}
+		if (at == t.messages.size()) addMessage(t, new Msg(from, name, text, arrivalTime(t), sent));
+		else insertMessage(t, at, new Msg(from, name, text, t.messages.get(at).ts, sent));
+		if (!t.id.equals(viewing)) {
+			t.unread++;
+			// One banner per arrival, for the new message.
+			if (!stored && !late) notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, u, name, text, null, null, t));
+		}
 	}
 
 	private void onTpa(String[] part, JsonObject o, boolean stored) {
@@ -917,6 +964,12 @@ public final class Market implements MarketRelay.Handler {
 	private static long arrivalTime(Trade t) {
 		long last = t.messages.isEmpty() ? 0 : t.messages.get(t.messages.size() - 1).ts;
 		return Math.max(System.currentTimeMillis(), last + 1);
+	}
+
+	private void insertMessage(Trade t, int index, Msg m) {
+		chatVersion++;
+		t.messages.add(index, m);
+		while (t.messages.size() > CHAT_KEEP) t.messages.remove(0);
 	}
 
 	private void addMessage(Trade t, Msg m) {

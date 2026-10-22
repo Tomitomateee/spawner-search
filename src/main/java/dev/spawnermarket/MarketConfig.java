@@ -18,6 +18,7 @@ import java.util.Map;
 public class MarketConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
+	private static final int SETTINGS_VERSION = 1;
 
 	/** Index into {@code Theme.ALL}. */
 	public int theme = 0;
@@ -46,8 +47,8 @@ public class MarketConfig {
 	/** A trade of mine ends: deal confirmed or ended without one. */
 	public boolean notifyTradeEnd = true;
 	public boolean notifyTpa = true;
-	/** Every new deal on the market (confirmed by both sides). */
-	public boolean notifyAllDeals = false;
+	/** Every new deal on the market (confirmed by both sides): someone bought or sold spawners. */
+	public boolean notifyAllDeals = true;
 
 	// How the banners look.
 	/** 0 = top left, 1 = top center, 2 = top right. */
@@ -57,6 +58,10 @@ public class MarketConfig {
 	public boolean bannerSound = true;
 	/** Also on top of other menus (inventory, chests, pause), not only in game. */
 	public boolean bannerInMenus = true;
+	/** Also on top of the Spawnerhandel menu itself. */
+	public boolean bannerInMarket = true;
+	/** Bumped when a new default has to reach existing configs as well (see load). */
+	public int settingsVersion;
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */
 	public Map<String, Trade> trades = new LinkedHashMap<>();
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
@@ -78,13 +83,18 @@ public class MarketConfig {
 					if (cfg.notifyTypes == null) cfg.notifyTypes = new ArrayList<>();
 					cfg.bannerPos = Math.floorMod(cfg.bannerPos, 3);
 					cfg.bannerSeconds = Math.max(3, Math.min(15, cfg.bannerSeconds));
+					// 1.2.5: a banner whenever someone buys or sells – it was off before.
+					if (cfg.settingsVersion < 1) cfg.notifyAllDeals = true;
+					cfg.settingsVersion = SETTINGS_VERSION;
 					return cfg;
 				}
 			}
 		} catch (Exception e) {
 			SpawnerMarketClient.LOGGER.warn("Konnte Config nicht lesen", e);
 		}
-		return new MarketConfig();
+		MarketConfig fresh = new MarketConfig();
+		fresh.settingsVersion = SETTINGS_VERSION;
+		return fresh;
 	}
 
 	public synchronized void save() {

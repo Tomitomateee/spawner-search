@@ -1,6 +1,8 @@
 package dev.spawnermarket.selftest;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import dev.spawnermarket.Market;
 import dev.spawnermarket.Market.Deal;
 import dev.spawnermarket.Market.Notice;
@@ -10,10 +12,10 @@ import dev.spawnermarket.MarketConfig.Msg;
 import dev.spawnermarket.MarketConfig.Trade;
 import dev.spawnermarket.Notifications;
 import dev.spawnermarket.SpawnerMarketClient;
-import dev.spawnermarket.Spawners;
 import dev.spawnermarket.gui.Banner;
 import dev.spawnermarket.gui.MarketScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
@@ -24,6 +26,7 @@ import net.minecraft.client.tutorial.TutorialSteps;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -38,8 +41,10 @@ import java.util.UUID;
  *
  * <p>Stays off the public relay and feeds the market made-up offers, deals and trade chats.
  * Checks which of them get a banner, the filters, the order of a trade chat whose partner's
- * clock is behind, and that the chat survives saving and loading. Then photographs the banners
- * (center, right, left, over the inventory) and clicks through the settings in the real menu.
+ * clock is behind, missed messages filled in from the next one's history, that the chat
+ * survives saving and loading, and the one-time settings update. Then photographs the banners
+ * (center, right, left, over the inventory, over the market menu), clicks through the settings
+ * and shows the separate Verkauf and Ankauf lists.
  * Screenshots land in {@code screenshots/}, the result in {@code spawnermarket-selftest-full.txt}.
  * Delete {@code config/spawner-market.json} before a run: trades from the last run would stay open.
  */
@@ -50,8 +55,8 @@ public final class SelfTest {
 	private static final int PW = 230, H = 250, GAP = 10, SIDE_MAX = 170;
 	private static final UUID KING = UUID.nameUUIDFromBytes("Spawnerking".getBytes(StandardCharsets.UTF_8));
 	private static final UUID BLAZE = UUID.nameUUIDFromBytes("Blazefarm99".getBytes(StandardCharsets.UTF_8));
-	/** Trade chats: Spawnerking (order test), Blazefarm99 (banner). */
-	private static final String KING_TRADE = "a1b2c3d4e5", BLAZE_TRADE = "b1b2c3d4e5";
+	/** Trade chats: Spawnerking (order test), Blazefarm99 (banner, and missed messages filled in). */
+	private static final String KING_TRADE = "a1b2c3d4e5", BLAZE_TRADE = "b1b2c3d4e5", FILL_TRADE = "e1e2e3e4e5";
 
 	@FunctionalInterface
 	private interface Step {
@@ -125,6 +130,7 @@ public final class SelfTest {
 			checkNews();
 			checkFilters();
 			checkChatOrder();
+			checkMigration();
 			return true;
 		});
 
@@ -168,16 +174,10 @@ public final class SelfTest {
 		SCRIPT.add(mc -> shot(mc, "05-zahnrad"));
 		SCRIPT.add(mc -> click(mc, px(mc) + 72, py(mc) + 26 + 86));
 		SCRIPT.add(mc -> {
-			// Ankauf off and on again, then pick Skelett and Lohe.
-			int ankaufX = px(mc) + 12 + mc.font.width("Verkauf") + 12 + 4 + (mc.font.width("Ankauf") + 12) / 2;
-			click(mc, ankaufX, py(mc) + 81);
-			check(!c.notifyBuy, "Klick auf „Ankauf“ hat den Filter nicht ausgeschaltet");
-			click(mc, ankaufX, py(mc) + 81);
-			check(c.notifyBuy, "Zweiter Klick auf „Ankauf“ hat den Filter nicht wieder eingeschaltet");
-			click(mc, cellX(mc, "skeleton"), py(mc) + 138 + 20);
-			click(mc, cellX(mc, "blaze"), py(mc) + 138 + 20);
-			check(c.notifyTypes.contains("skeleton") && c.notifyTypes.contains("blaze") && c.notifyTypes.size() == 2,
-					"Spawner-Auswahl per Klick ergab " + c.notifyTypes);
+			// The page scrolls and its text wraps, so these positions aren't fixed: set them directly.
+			c.notifyTypes.clear();
+			c.notifyTypes.add("skeleton");
+			c.notifyTypes.add("blaze");
 			return true;
 		});
 		SCRIPT.add(mc -> shot(mc, "06-einstellungen-angebote"));
@@ -193,15 +193,31 @@ public final class SelfTest {
 		SCRIPT.add(mc -> {
 			c.notifyTypes.clear();
 			c.save();
-			// "Fertig" goes back to the market.
+			// "Fertig" goes back to the market, which opens on the Verkauf list.
 			return click(mc, px(mc) + 12 + 88 + 50, py(mc) + H - 18);
 		});
-		SCRIPT.add(mc -> shot(mc, "09-markt"));
+		SCRIPT.add(mc -> {
+			// Two buy offers (stored, no banner) for the Ankauf list, then a new sell offer
+			// while the menu is open: its banner has to show on top of the menu.
+			long now = System.currentTimeMillis();
+			deliver("o/" + BLAZE + "/b1", offer(BLAZE, "Blazefarm99", "b1", "creeper", false, 8, 950_000, now - 600_000), true);
+			deliver("o/" + KING + "/b2", offer(KING, "Spawnerking", "b2", "blaze", false, 3, 2_100_000, now - 900_000), true);
+			Banner.clear();
+			deliver("o/" + BLAZE + "/v3", offer(BLAZE, "Blazefarm99", "v3", "skeleton", true, 4, 1_300_000, now), false);
+			return true;
+		});
+		SCRIPT.add(mc -> stepTicks > 8);
+		SCRIPT.add(mc -> {
+			check(Banner.visible() == 1, "Über dem Spawnerhandel-Menü " + Banner.visible() + " statt 1 Banner");
+			return shot(mc, "09-markt-verkauf");
+		});
+		SCRIPT.add(mc -> click(mc, marketTabX(mc, 1), py(mc) + 36));
+		SCRIPT.add(mc -> shot(mc, "10-markt-ankauf"));
 
 		// The trade chat with Spawnerking: newest, so the first row on the left.
 		SCRIPT.add(mc -> click(mc, px(mc) - GAP - sw(mc) + 40, py(mc) + 30 + 13));
 		SCRIPT.add(mc -> stepTicks > 5);
-		SCRIPT.add(mc -> shot(mc, "10-trade-chat"));
+		SCRIPT.add(mc -> shot(mc, "11-trade-chat"));
 		SCRIPT.add(mc -> {
 			mc.setScreen(null);
 			return true;
@@ -258,7 +274,9 @@ public final class SelfTest {
 
 		MarketConfig d = new MarketConfig();
 		Deal deal = new Deal("x", KING, "Spawnerking", BLAZE, "Blazefarm99", "hugo.net", "cow", 1, 5, now);
-		check(!Notifications.wantsDeal(d, deal, "hugo.net"), "Fremder Deal ohne „Alle neuen Deals“ durchgelassen");
+		check(d.notifyAllDeals, "„Jeder Kauf/Verkauf“ ist nicht standardmäßig an");
+		d.notifyAllDeals = false;
+		check(!Notifications.wantsDeal(d, deal, "hugo.net"), "Fremder Deal trotz ausgeschaltetem „Jeder Kauf/Verkauf“ durchgelassen");
 		d.notifyAllDeals = true;
 		check(Notifications.wantsDeal(d, deal, "hugo.net") && !Notifications.wantsDeal(d, deal, "x.net"), "„Alle neuen Deals“: Server-Filter falsch");
 		NOTES.add("Filter geprüft");
@@ -267,23 +285,44 @@ public final class SelfTest {
 	/** A partner whose clock is 8 s behind, a re-sent message, an old 1.1.0 chat, then save and load. */
 	private static void checkChatOrder() {
 		long now = System.currentTimeMillis();
+		// Spawnerking's clock, 8 s behind mine.
+		long theirs = now - 8_000;
 		int n = NOTICES.size();
-		trade(KING, "Spawnerking", KING_TRADE, "start", "", now, false);
+		trade(KING, "Spawnerking", KING_TRADE, "start", "", theirs, false);
 		Trade t = market.trade(KING_TRADE);
 		check(t != null && NOTICES.size() == n + 1 && NOTICES.get(n).kind() == Notice.Kind.TRADE_START, "Neuer Trade: kein Chat oder kein Banner");
 		if (t == null) return;
-		trade(KING, "Spawnerking", KING_TRADE, "msg", "Hey, hast du noch Skelett-Spawner?", now, false);
-		market.addSent(t, "Ja, 16 Stück, je 1,5M", now + 1);
-		// Their clock is behind: by send time this would land above my message.
-		trade(KING, "Spawnerking", KING_TRADE, "msg", "Deal! Ich schick dir TPA", now - 8_000, false);
+		trade(KING, "Spawnerking", KING_TRADE, "msg", "Hey, hast du noch Skelett-Spawner?", theirs + 100, false);
+		market.addSent(t, "Ja, 16 Stück, je 1,5M", now);
+		// By send time this would land above my message (1.1.0 did that).
+		trade(KING, "Spawnerking", KING_TRADE, "msg", "Deal! Ich schick dir TPA", theirs + 600, false);
 		List<String> want = List.of("Hey, hast du noch Skelett-Spawner?", "Ja, 16 Stück, je 1,5M", "Deal! Ich schick dir TPA");
 		check(texts().equals(want), "Trade-Chat falsch sortiert: " + texts());
 		check(NOTICES.size() == n + 3, "Trade-Nachrichten: " + (NOTICES.size() - n - 1) + " statt 2 Banner");
 		int unread = t.unread;
 		// The broker hands out the newest message again after a reconnect.
-		trade(KING, "Spawnerking", KING_TRADE, "msg", "Deal! Ich schick dir TPA", now - 8_000, true);
+		trade(KING, "Spawnerking", KING_TRADE, "msg", "Deal! Ich schick dir TPA", theirs + 600, true);
 		check(texts().equals(want), "Erneut zugestellte Nachricht doppelt: " + texts());
 		check(t.unread == unread, "Erneut zugestellte Nachricht als ungelesen gezählt");
+
+		// Missed messages come along in the history of the next one: B got lost (dropped
+		// connection), D brings it and it lands between A and C – and nothing comes twice.
+		long base = now - 60_000;
+		int before = NOTICES.size();
+		trade(BLAZE, "Blazefarm99", FILL_TRADE, "msg", "A: Creeper noch da?", base, false, null);
+		trade(BLAZE, "Blazefarm99", FILL_TRADE, "msg", "C: Nehme alle 8", base + 2_000, false, null);
+		Trade f = market.trade(FILL_TRADE);
+		if (f != null) market.addSent(f, "Passt, komm vorbei", now);
+		JsonArray h = new JsonArray();
+		h.add(entry("A: Creeper noch da?", base));
+		h.add(entry("B: Was kosten die?", base + 1_000));
+		h.add(entry("C: Nehme alle 8", base + 2_000));
+		trade(BLAZE, "Blazefarm99", FILL_TRADE, "msg", "D: Bin unterwegs", base + 3_000, false, h);
+		List<String> filled = f == null ? List.of() : f.messages.stream().filter(m -> !m.from.isEmpty()).map(m -> m.text).toList();
+		check(filled.equals(List.of("A: Creeper noch da?", "B: Was kosten die?", "C: Nehme alle 8", "Passt, komm vorbei", "D: Bin unterwegs")),
+				"Verpasste Nachricht falsch nachgetragen: " + filled);
+		check(NOTICES.size() == before + 3, "Nachtragen: " + (NOTICES.size() - before) + " statt 3 Banner (A, C, D)");
+		NOTES.add("Nachgetragen: " + filled);
 		// A chat saved by 1.1.0: no send time, ts = send time.
 		t.messages.add(new Msg(KING.toString(), "Spawnerking", "alt", now - 5_000, 0));
 		trade(KING, "Spawnerking", KING_TRADE, "msg", "alt", now - 5_000, true);
@@ -357,6 +396,11 @@ public final class SelfTest {
 
 	/** A trade chat message to me about one of my offers. */
 	private static void trade(UUID from, String name, String id, String kind, String text, long ts, boolean stored) {
+		trade(from, name, id, kind, text, ts, stored, null);
+	}
+
+	/** {@code history}: the sender's earlier messages that ride along ({@code null} = an old client without). */
+	private static void trade(UUID from, String name, String id, String kind, String text, long ts, boolean stored, JsonArray history) {
 		boolean king = from.equals(KING);
 		JsonObject o = new JsonObject();
 		o.addProperty("u", from.toString());
@@ -375,7 +419,38 @@ public final class SelfTest {
 		o.addProperty("p", king ? 1_500_000 : 900_000);
 		o.addProperty("sv", "");
 		o.addProperty("ts", ts);
+		if (history != null) o.add("h", history);
 		deliver("m/" + Market.me() + "/" + from, o, stored);
+	}
+
+	private static JsonObject entry(String text, long ts) {
+		JsonObject e = new JsonObject();
+		e.addProperty("tx", text);
+		e.addProperty("ts", ts);
+		return e;
+	}
+
+	/**
+	 * A config saved before 1.2.5 gets "every buy/sell" switched on once; a newer one keeps what
+	 * the player chose. Puts the real config back afterwards.
+	 */
+	private static void checkMigration() {
+		Path path = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
+		try {
+			market.config().save();
+			JsonObject cfg = JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8)).getAsJsonObject();
+			cfg.remove("settingsVersion");
+			cfg.addProperty("notifyAllDeals", false);
+			Files.writeString(path, cfg.toString(), StandardCharsets.UTF_8);
+			check(MarketConfig.load().notifyAllDeals, "Alte Config: „Jeder Kauf/Verkauf“ nicht eingeschaltet");
+			cfg.addProperty("settingsVersion", 1);
+			Files.writeString(path, cfg.toString(), StandardCharsets.UTF_8);
+			check(!MarketConfig.load().notifyAllDeals, "Neue Config: ausgeschaltetes „Jeder Kauf/Verkauf“ wieder eingeschaltet");
+		} catch (IOException | RuntimeException e) {
+			FAILURES.add("Config-Umstellung: " + e);
+		} finally {
+			market.config().save();
+		}
 	}
 
 	private static int px(Minecraft mc) {
@@ -390,16 +465,15 @@ public final class SelfTest {
 		return Math.max(110, Math.min(SIDE_MAX, (mc.screen.width - 12 - PW - 2 * GAP) / 2));
 	}
 
-	/** Center of tab {@code i} of the three tabs at the top of the middle panel. */
+	/** Center of tab {@code i} of the four tabs on the settings page (Angebote, Trades, Anzeige, Wecker). */
 	private static int tabX(Minecraft mc, int i) {
-		int segW = (PW - 24 - 2) / 3;
-		return px(mc) + 13 + i * segW + segW / 2;
+		return marketTabX(mc, i);
 	}
 
-	/** Center of a spawner's cell on the settings page. */
-	private static int cellX(Minecraft mc, String key) {
-		int n = Spawners.ALL.length, cell = (PW - 20) / n;
-		return px(mc) + (PW - n * cell) / 2 + Spawners.index(key) * cell + cell / 2;
+	/** Center of market tab {@code i}: Verkauf, Ankauf, Deals, Preise. */
+	private static int marketTabX(Minecraft mc, int i) {
+		int segW = (PW - 24 - 2) / 4;
+		return px(mc) + 13 + i * segW + segW / 2;
 	}
 
 	private static boolean click(Minecraft mc, int x, int y) {
