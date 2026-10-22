@@ -877,6 +877,7 @@ public final class Market implements MarketRelay.Handler {
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0; // share it right away
+			publishClan(tag);
 			say("Clan erkannt: " + Clan.text(tag));
 		} else if (Clan.saysNoClan(message)) {
 			CLAN_BY_NAME.remove(myName().toLowerCase(Locale.ROOT));
@@ -884,8 +885,35 @@ public final class Market implements MarketRelay.Handler {
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0;
+			publishClan(null);
 			say("Du bist in keinem Clan");
 		}
+	}
+
+	/**
+	 * My clan on its own stored topic {@code k/<uuid>}: unlike the online status it isn't replaced
+	 * when I go offline, so the others see my tag even while I'm not playing. Empty = no clan.
+	 */
+	private void publishClan(List<Clan.Seg> tag) {
+		JsonObject o = new JsonObject();
+		o.addProperty("u", me().toString());
+		o.addProperty("nm", myName());
+		o.add("cl", tag == null ? new JsonArray() : Clan.toJson(tag));
+		o.addProperty("ts", System.currentTimeMillis());
+		relay.publish("k/" + me(), o, true);
+	}
+
+	private void onClan(String[] part, JsonObject o) {
+		if (part.length != 2 || o == null) return;
+		UUID u = author(o, part[1]);
+		if (u.equals(me())) {
+			// My clan from before a restart: shared on in my status until /clan info decides.
+			if (carriedClan == null) carriedClan = Clan.fromJson(o.get("cl"));
+			return;
+		}
+		List<Clan.Seg> tag = Clan.fromJson(o.get("cl"));
+		if (tag == null) clans.remove(u);
+		else clans.put(u, tag);
 	}
 
 	/** Quitting: mark me offline right away instead of waiting for the broker. */
@@ -894,6 +922,8 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("u", me().toString());
 		o.addProperty("nm", myName());
 		o.addProperty("off", true);
+		List<Clan.Seg> mine = myClanTag() != null ? myClanTag() : carriedClan;
+		if (mine != null) o.add("cl", Clan.toJson(mine));
 		relay.publish("p/" + me(), o, true);
 		relay.flush();
 	}
@@ -932,6 +962,7 @@ public final class Market implements MarketRelay.Handler {
 				case "d" -> onDeal(part, o, stored);
 				case "v" -> onVouch(part, o);
 				case "p" -> onPresence(part, o, stored);
+				case "k" -> onClan(part, o);
 				case "m" -> onTradeMessage(part, o, stored);
 				case "t" -> onTpa(part, o, stored);
 				default -> { }
