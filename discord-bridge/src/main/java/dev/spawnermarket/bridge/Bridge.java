@@ -36,6 +36,8 @@ public final class Bridge implements Relay.Handler {
 		String server = "";
 		Map<String, String> webhooks = new LinkedHashMap<>();
 		int maxPerSpawner = 10;
+		/** Every live message is refreshed this often, even when nothing changed (changes show at once). */
+		int refreshMinutes = 3;
 		boolean postExistingVouches = false;
 	}
 
@@ -81,6 +83,8 @@ public final class Bridge implements Relay.Handler {
 	private final Map<String, Vouch> vouches = new HashMap<>();
 	/** Last content sent per board, so unchanged boards aren't edited again. */
 	private final Map<String, String> sent = new HashMap<>();
+	/** When each live message was last sent. */
+	private final Map<String, Long> sentAt = new HashMap<>();
 	private volatile long connectedAt;
 
 	private Bridge(Config config, State state, boolean dryRun) {
@@ -104,6 +108,7 @@ public final class Bridge implements Relay.Handler {
 		if (config.webhooks == null) config.webhooks = new LinkedHashMap<>();
 		config.server = normalizeServer(config.server == null ? "" : config.server);
 		config.maxPerSpawner = Math.max(1, Math.min(25, config.maxPerSpawner));
+		config.refreshMinutes = Math.max(1, Math.min(60, config.refreshMinutes <= 0 ? 3 : config.refreshMinutes));
 		if (!dryRun) {
 			for (String c : new String[] { "verkauf", "ankauf", "preise", "vouches" }) {
 				String url = config.webhooks.get(c);
@@ -273,13 +278,15 @@ public final class Bridge implements Relay.Handler {
 	private void postBoard(String channel, JsonObject message) {
 		String url = config.webhooks.get(channel);
 		String signature = message.toString();
-		if (signature.equals(sent.get(channel))) return;
-		// The "updated" time only changes when the content did.
+		// Changed: right away. Unchanged: refreshed every few minutes ("Stand" shows it's alive).
+		boolean due = now() - sentAt.getOrDefault(channel, 0L) >= config.refreshMinutes * 60_000L;
+		if (signature.equals(sent.get(channel)) && !due) return;
 		message.addProperty("content", message.get("content").getAsString()
 				+ "\n-# Live aus der Spawner-Market-Mod · Stand <t:" + now() / 1000 + ":R>");
 		if (dryRun) {
 			System.out.println("\n===== #" + channel + " =====\n" + preview(message));
 			sent.put(channel, signature);
+			sentAt.put(channel, now());
 			return;
 		}
 		if (url == null || url.isBlank()) return;
@@ -296,6 +303,7 @@ public final class Bridge implements Relay.Handler {
 			return; // try again next round
 		}
 		sent.put(channel, signature);
+		sentAt.put(channel, now());
 	}
 
 	private void postVouches(Map<String, Deal> deals) {

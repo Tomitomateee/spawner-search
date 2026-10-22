@@ -7,5 +7,6 @@
     "vouches": "https://discord.com/api/webhooks/..."
   },
   "maxPerSpawner": 10,
+  "refreshMinutes": 3,
   "postExistingVouches": false
 }

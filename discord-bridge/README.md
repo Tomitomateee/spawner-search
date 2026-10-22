@@ -44,6 +44,7 @@ installiert hast, reicht meist).
        "vouches": "https://discord.com/api/webhooks/…"
      },
      "maxPerSpawner": 10,
+     "refreshMinutes": 3,
      "postExistingVouches": false
    }
    ```
@@ -51,6 +52,8 @@ installiert hast, reicht meist).
    - `server`: nur Angebote und Deals von diesem Minecraft-Server zeigen (Adresse wie in
      Minecraft, ohne `:25565`). Leer lassen = alle Server, dann steht der Server bei jedem Angebot.
    - `maxPerSpawner`: wie viele Angebote pro Spawner höchstens in der Nachricht stehen (1–25).
+   - `refreshMinutes`: alle wie viele Minuten die Live-Nachrichten neu gesendet werden, auch
+     wenn sich nichts geändert hat (Standard 3). Änderungen erscheinen sofort.
    - `postExistingVouches`: `true` postet beim ersten Start auch alle alten Vouches. Standard:
      nur neue.
 5. `start.bat` nochmal starten und das Fenster offen lassen. Nach ein paar Sekunden erscheinen
