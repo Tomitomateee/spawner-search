@@ -302,15 +302,15 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	/**
-	 * Every vouch that counts: one per trade, whoever sent it first (if both sides vouched at the
-	 * same moment). Vouches from 1.2.0 have no trade and all count.
+	 * Every vouch that counts: one per person and trade (both sides vouch each other, so a trade
+	 * has two). Vouches from 1.2.0 have no trade and all count.
 	 */
 	private List<Vouch> validVouches() {
 		Map<String, Vouch> first = new HashMap<>();
 		List<Vouch> list = new ArrayList<>();
 		for (Vouch v : vouches.values()) {
 			if (v.trade.isEmpty()) list.add(v);
-			else first.merge(v.trade, v, (a, b) -> a.ts <= b.ts ? a : b);
+			else first.merge(v.trade + "/" + v.from, v, (a, b) -> a.ts <= b.ts ? a : b);
 		}
 		list.addAll(first.values());
 		return list;
@@ -552,8 +552,8 @@ public final class Market implements MarketRelay.Handler {
 
 	/**
 	 * Vouches the other player of an open trade: only in a trade, after at least two chat
-	 * messages (one from each side), and only one vouch per trade. Vouches from the same player
-	 * still stack across trades. Positive: the deal went through, it is
+	 * messages (one from each side), and once per trade. The trade closes when both have vouched
+	 * (see {@link #checkTradeDone}). Vouches from the same player still stack across trades. Positive: the deal went through, it is
 	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, the chat is
 	 * deleted but the offer stays. Negative: no deal, the chat is deleted.
 	 */
@@ -574,10 +574,33 @@ public final class Market implements MarketRelay.Handler {
 
 	/** Why I can't vouch in this trade yet, or null when I can. */
 	public String vouchBlocker(Trade t) {
-		String id = t.id, me = me().toString();
-		for (Vouch v : vouches.values()) if (id.equals(v.trade) && me.equals(v.from.toString())) return "Für diesen Trade hast du schon gevoucht";
+		if (vouchIn(t, me()) != null) return "Warte auf den Vouch von " + t.otherName(me().toString());
 		if (chatMessages(t) < VOUCH_MIN_MESSAGES || !bothWrote(t)) return "Erst mind. " + VOUCH_MIN_MESSAGES + " Nachrichten im Chat";
 		return null;
+	}
+
+	/** {@code from}'s vouch in this trade, or null. */
+	public Vouch vouchIn(Trade t, UUID from) {
+		UUID other = from.equals(me()) ? UUID.fromString(t.other(me().toString())) : me();
+		for (Vouch v : vouches.values()) if (t.id.equals(v.trade) && v.from.equals(from) && v.target.equals(other)) return v;
+		return null;
+	}
+
+	/**
+	 * A trade is done once both players vouched each other. Both positive = a deal (each side
+	 * publishes its record, the offer goes); otherwise no deal. Either way the chat is deleted.
+	 */
+	private void checkTradeDone(Trade t) {
+		UUID other = UUID.fromString(t.other(me().toString()));
+		Vouch mine = vouchIn(t, me()), theirs = vouchIn(t, other);
+		if (mine == null || theirs == null || !config.trades.containsKey(t.id)) return;
+		boolean deal = mine.positive() && theirs.positive();
+		if (deal) publishDeal(t);
+		forgetTrade(t);
+		String name = t.otherName(me().toString());
+		notifier.notify(new Notice(deal ? Notice.Kind.TRADE_DONE : Notice.Kind.TRADE_CLOSED, other, name, "", null, null, t));
+		say(deal ? "Deal mit " + name + " abgeschlossen – ihr habt beide gevoucht"
+				: "Trade mit " + name + " abgeschlossen (kein Deal)");
 	}
 
 	public String vouch(UUID target, String targetName, int rating, String text, Trade trade) {
@@ -600,17 +623,24 @@ public final class Market implements MarketRelay.Handler {
 		v.addProperty("tx", text);
 		v.addProperty("ts", System.currentTimeMillis());
 		publishMine("v/" + target + "/" + me() + "/" + trade.id, v);
-		if (rating > 0) publishDeal(trade);
-		sendTrade(trade, "close", "", rating > 0);
-		forgetTrade(trade);
-		say(rating > 0 ? "Deal mit " + targetName + " abgeschlossen"
-				: rating == 0 ? "Trade mit " + targetName + " kam nicht zustande – Angebot bleibt"
-				: "Trade mit " + targetName + " beendet (kein Deal)");
+		if (config.trades.containsKey(trade.id)) {
+			// Still open: the partner hasn't vouched yet.
+			String label = rating > 0 ? "positiv" : rating == 0 ? "neutral" : "negativ";
+			addMessage(trade, new Msg("", "", "Du hast " + label + " gevoucht. Der Trade ist abgeschlossen, sobald "
+					+ targetName + " auch für dich vouched.", System.currentTimeMillis()));
+			config.save();
+			say("Vouch gespeichert – warte auf " + targetName);
+		}
 		return null;
 	}
 
 	public void removeVouch(Vouch v) {
 		if (!v.from.equals(me())) return;
+		// While the trade is open, the vouch is part of closing it: it stays.
+		if (config.trades.containsKey(v.trade)) {
+			say("Der Vouch gehört zu einem offenen Trade");
+			return;
+		}
 		// Vouches from 1.2.x have no trade in their topic.
 		String topic = "v/" + v.target + "/" + me() + (v.trade.isEmpty() ? "" : "/" + v.trade);
 		if (!config.published.containsKey(topic)) topic = "v/" + v.target + "/" + me();
@@ -809,8 +839,26 @@ public final class Market implements MarketRelay.Handler {
 		String tn = playerName(str(o, "tn"));
 		if (!tn.isEmpty() && !target.equals(me())) names.putIfAbsent(target, tn);
 		int rating = o.has("r") ? Integer.signum(o.get("r").getAsInt()) : o.get("pos").getAsBoolean() ? 1 : -1;
-		vouches.put(key, new Vouch(target, tn, from, playerName(str(o, "nm")), rating, clean(str(o, "tr"), 10),
-				clean(str(o, "tx"), 120), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong())));
+		Vouch v = new Vouch(target, tn, from, playerName(str(o, "nm")), rating, clean(str(o, "tr"), 10),
+				clean(str(o, "tx"), 120), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong()));
+		Vouch before = vouches.put(key, v);
+		Trade t = config.trades.get(v.trade);
+		if (t == null) return;
+		String me = me().toString();
+		if (!from.toString().equals(t.other(me)) || !target.toString().equals(me)) {
+			if (from.equals(me())) checkTradeDone(t);
+			return;
+		}
+		if (before == null && vouchIn(t, me()) == null) {
+			// They vouched first: tell me it's my turn.
+			String label = v.rating > 0 ? "positiv" : v.rating == 0 ? "neutral" : "negativ";
+			addMessage(t, new Msg("", "", v.fromName + " hat " + label + " für dich gevoucht. Jetzt bist du dran – "
+					+ "erst wenn ihr beide gevoucht habt, ist der Trade abgeschlossen.", System.currentTimeMillis()));
+			if (!t.id.equals(viewing)) t.unread++;
+			config.save();
+			notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, from, v.fromName, "hat für dich gevoucht – jetzt bist du dran", null, null, t));
+		}
+		checkTradeDone(t);
 	}
 
 	private void onPresence(String[] part, JsonObject o, boolean stored) {
@@ -839,16 +887,10 @@ public final class Market implements MarketRelay.Handler {
 
 		if (kind.equals("close")) {
 			if (t == null || !u.toString().equals(t.other(me))) return;
-			// They vouched me: confirm the deal from my side too, then the chat is gone. Only for a
-			// real conversation, so a modified client can't open a trade and close it as a deal at once.
-			String other = u.toString();
-			boolean talked = t.messages.stream().anyMatch(m -> me.equals(m.from))
-					&& t.messages.stream().anyMatch(m -> other.equals(m.from));
-			boolean deal = o.has("deal") && o.get("deal").getAsBoolean() && talked;
-			if (deal) publishDeal(t);
+			// They cancelled with ✕ (deals only come from both vouches).
 			forgetTrade(t);
-			if (!stored || deal) notifier.notify(new Notice(deal ? Notice.Kind.TRADE_DONE : Notice.Kind.TRADE_CLOSED, u, name, "", null, null, t));
-			say(deal ? "Deal mit " + name + " abgeschlossen" : name + " hat den Trade beendet");
+			if (!stored) notifier.notify(new Notice(Notice.Kind.TRADE_CLOSED, u, name, "", null, null, t));
+			say(name + " hat den Trade abgebrochen");
 			return;
 		}
 

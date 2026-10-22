@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.2.4.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.3.0.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -37,14 +37,18 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 - Jeder Trade hat seinen eigenen Chat: **Handeln** an einem Angebot öffnet ihn, beim Anbieter
   taucht er automatisch auf. Oben steht, um welches Angebot es geht.
 - Die erste Nachricht steht oben, neue kommen darunter.
-- **+ Deal** (positiver Vouch, rechts) **schließt den Deal ab**: Er wird eingetragen, das Angebot
-  verschwindet, und der Chat wird bei beiden gelöscht. Ein neuer Deal bekommt einen neuen Chat.
-- **○ Neutral:** Der Trade kam nicht zustande – kein Deal, der Trade-Chat wird gelöscht, das Angebot bleibt.
-- **− Negativ** oder **✕** beendet den Trade ohne Deal (Chat wird gelöscht).
+- **Ein Trade ist erst abgeschlossen, wenn beide füreinander gevoucht haben.** Wer zuerst vouched,
+  sieht „wartet auf …“, der andere „du bist dran“ (oben im Chat, plus Hinweis im Verlauf).
+- Haben **beide positiv** (**+ Deal**) gevoucht, wird der Deal eingetragen und das Angebot
+  verschwindet. Ist mindestens ein Vouch **neutral** oder **negativ**, gibt es keinen Deal und das
+  Angebot bleibt. In jedem Fall wird der Chat danach bei beiden gelöscht – ein neuer Deal bekommt
+  einen neuen Chat.
+- **✕** bricht den Trade ohne Vouch und ohne Deal ab.
 - **Namen laufen automatisch mit:** Die Namen im Deal kommen aus den Minecraft-Konten der beiden
-  Trade-Partner, nicht aus einem Textfeld. Ein Deal zählt erst, wenn **beide** Clients ihn
-  bestätigt haben; das passiert automatisch, sobald einer vouched und beide im Chat geschrieben
-  haben.
+  Trade-Partner, nicht aus einem Textfeld, und beide Clients tragen den Deal unter ihrer eigenen
+  Identität ein.
+- Beide Spieler brauchen mindestens Version 1.3.0 – ältere Versionen schließen den Trade schon
+  nach einem Vouch.
 - TPA-Anfragen von anderen Mod-Spielern erscheinen oben mit **Ja** (schickt `/tpaccept <Name>`).
 
 ### Rechts – Vouches
@@ -53,11 +57,10 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 - **Vouchen geht nur nach einem Trade** – also nur für den Partner eines offenen Trade-Chats,
   und erst wenn im Chat **mindestens 2 Nachrichten** stehen (je eine von beiden Seiten). Dann Text
   eingeben und **+ Deal**, **○ Neutral** oder **− Neg.** klicken.
-- **Pro Trade gibt es genau einen Vouch** – egal ob Deal, neutral oder negativ. Der Vouch schließt
-  den Trade, danach kann keiner mehr für diesen Trade vouchen.
-- Vouches stacken: Jeder Trade bekommt seinen eigenen Vouch, auch vom selben Spieler – egal ob
-  positiv, neutral oder negativ. Ein positiver Vouch zählt erst,
-  wenn beide Seiten den Deal bestätigt haben (vorher „unbestätigt“).
+- **Pro Trade vouched jeder genau einmal** für den anderen – egal ob Deal, neutral oder negativ.
+  Ein Vouch eines offenen Trades lässt sich nicht löschen.
+- Vouches stacken: Jeder Trade bringt neue Vouches, auch vom selben Spieler. Ein positiver Vouch
+  zählt erst, wenn der Deal eingetragen ist (vorher „unbestätigt“).
 - Ohne Auswahl: Rangliste der Top-Händler. Dein Kopf oben rechts zeigt deine eigenen Vouches.
 
 ### Zahnrad

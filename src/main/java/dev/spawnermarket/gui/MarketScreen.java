@@ -1027,6 +1027,13 @@ public class MarketScreen extends Screen {
 		g.drawString(font, clip(what, sw - 42), lx + 32, top + 3, TEXT, false);
 		String role = me.equals(trade.owner) == trade.sell ? "Du verkaufst" : "Du kaufst";
 		g.drawString(font, role, lx + 32, top + 12, TEXT_SOFT, false);
+		// Vouch status: the trade only closes once both have vouched.
+		boolean iVouched = market.vouchIn(trade, Market.me()) != null, theyVouched = market.vouchIn(trade, with) != null;
+		String status = iVouched ? "wartet auf " + name : theyVouched ? "du bist dran" : "";
+		if (!status.isEmpty()) {
+			status = clip(status, sw - 46 - font.width(role));
+			g.drawString(font, status, lx + sw - 12 - font.width(status), top + 12, iVouched ? TEXT_FAINT : ACCENT_TOP, false);
+		}
 		top += 26;
 
 		List<Msg> msgs = trade.messages;
