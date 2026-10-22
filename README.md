@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.4.1.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.4.2.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Willkommen & Clan (hugoSMP)
@@ -16,7 +16,7 @@ Jedes Mal, wenn du hugoSMP joinst, kommt beim ersten **H** ein Willkommensfenste
 /clan info, um fortzufahren“. Der Knopf **/clan info ausführen** schickt den Befehl (oder du
 tippst ihn selbst in den Chat). Die Mod liest aus der Antwort dein **Clan-Kürzel** mit seinen
 Farben, z. B. **[FWM5]**, und zeigt es ab dann überall in der Mod **vor deinem Namen** – auch bei
-den anderen Spielern mit der Mod. Bist du in keinem Clan, drück einfach **Weiter**. **Discord**
+den anderen Spielern mit der Mod. **Weiter** wird erst frei, wenn der Server auf /clan info geantwortet hat – auch wenn du in keinem Clan bist (dann bleibt nur dein Name, ohne Kürzel). **Discord**
 öffnet den Spawner-Market-Discord. Danach geht es direkt ins Menü.
 
 Clan gewechselt? **Zahnrad → Clan → Aktualisieren** liest „/clan info“ neu.

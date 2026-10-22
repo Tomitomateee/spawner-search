@@ -66,7 +66,7 @@ public class WelcomeScreen extends Screen {
 		String name = Market.myName();
 		centered(g, "Hallo " + name + "!", y + 44, text);
 		centered(g, "Mach /clan info, um fortzufahren.", y + 60, soft);
-		centered(g, "Solltest du in keinem Clan sein, drück Weiter.", y + 72, soft);
+		centered(g, "Solltest du in keinem Clan sein, bitte trotzdem ausführen.", y + 72, soft);
 
 		// /clan info right from here (the answer comes in the chat and is read by the mod).
 		String cmd = "/clan info ausführen";
@@ -74,21 +74,26 @@ public class WelcomeScreen extends Screen {
 		Glass.pill(g, cx, cy, cw, 16, t.pillTop(), t.pillBottom(), hover(mx, my, cx, cy, cw, 16));
 		centered(g, cmd, cy + 4, text);
 
-		// What the mod read so far.
-		MutableComponent tag = Clan.component(market.config().clanTag, text);
-		if (tag != null) {
-			MutableComponent line = Component.literal("Dein Clan: ").withColor(soft).append(tag).append(Component.literal(" " + name).withColor(text));
-			g.drawString(font, line, x + (W - font.width(line)) / 2, y + 114, text, false);
-		} else {
-			centered(g, "Noch kein Clan erkannt", y + 114, t.textFaint());
-		}
+		// Just the name until "/clan info" was answered; then the clan tag in front (if any).
+		MutableComponent tag = market.clanFound() ? Clan.component(market.config().clanTag, WHITE) : null;
+		MutableComponent line = Component.literal(tag != null ? "Dein Clan: " : "Dein Name: ").withColor(soft);
+		if (tag != null) line.append(tag).append(" ");
+		line.append(Component.literal(name).withColor(WHITE));
+		g.drawString(font, line, x + (W - font.width(line)) / 2, y + 114, WHITE, false);
+		if (market.clanInfoWaiting()) centered(g, "Warte auf die Antwort vom Server …", y + 126, t.textFaint());
 		String msg = market.message();
-		if (msg != null) centered(g, msg, y + 126, t.accentTop() | 0xFF000000);
+		if (msg != null && !market.clanInfoWaiting()) centered(g, msg, y + 126, t.accentTop() | 0xFF000000);
 
 		// Weiter (left) and Discord (right).
 		int bw = (W - 36) / 2, by = y + H - 32;
-		Glass.pill(g, x + 12, by, bw, 20, t.accentTop(), t.accentBottom(), hover(mx, my, x + 12, by, bw, 20));
-		centered(g, "Weiter", by + 6, WHITE, x + 12 + bw / 2);
+		// Weiter unlocks once "/clan info" was answered.
+		if (market.clanInfoDone()) {
+			Glass.pill(g, x + 12, by, bw, 20, t.accentTop(), t.accentBottom(), hover(mx, my, x + 12, by, bw, 20));
+			centered(g, "Weiter", by + 6, WHITE, x + 12 + bw / 2);
+		} else {
+			Glass.pill(g, x + 12, by, bw, 20, 0xFF6E6E78, 0xFF55555E, false);
+			centered(g, "Weiter", by + 6, 0xFFB8B8C0, x + 12 + bw / 2);
+		}
 		Glass.pill(g, x + 24 + bw, by, bw, 20, 0xFF7289DA, 0xFF5865F2, hover(mx, my, x + 24 + bw, by, bw, 20));
 		centered(g, "Discord", by + 6, WHITE, x + 24 + bw + bw / 2);
 		super.render(g, mx, my, pt);
@@ -105,6 +110,10 @@ public class WelcomeScreen extends Screen {
 			return true;
 		}
 		if (hover(mx, my, x + 12, by, bw, 20)) {
+			if (!market.clanInfoDone()) {
+				market.say("Führ zuerst /clan info aus");
+				return true;
+			}
 			market.welcomeDone();
 			minecraft.setScreen(new MarketScreen(market));
 			return true;

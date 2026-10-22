@@ -65,6 +65,9 @@ public final class Market implements MarketRelay.Handler {
 	private final Map<UUID, List<Clan.Seg>> clans = new HashMap<>();
 	/** Until when an answer to "/clan info" is expected (I sent or typed the command). */
 	private long clanInfoUntil;
+	/** Since joining hugoSMP: "/clan info" was answered (clan or "no clan"), and when it was sent. */
+	private boolean clanAnswered;
+	private long clanAskedAt;
 	/** Offers I was already alarmed about this session. */
 	private final Set<String> alarmed = new HashSet<>();
 	/** Which trade chat the GUI is showing right now (no unread count for it). */
@@ -744,7 +747,12 @@ public final class Market implements MarketRelay.Handler {
 		String sv = server();
 		long now = System.currentTimeMillis();
 		if (!sv.equals(lastServer) || now - lastHeartbeat > HEARTBEAT_MS) {
-			if (!sv.equals(lastServer)) welcomePending = sv.contains("hugosmp");
+			if (!sv.equals(lastServer)) {
+				welcomePending = sv.contains("hugosmp");
+				// Every join asks again.
+				clanAnswered = false;
+				clanAskedAt = 0;
+			}
 			lastServer = sv;
 			lastHeartbeat = now;
 			heartbeat();
@@ -793,7 +801,26 @@ public final class Market implements MarketRelay.Handler {
 
 	/** "/clan info" was sent (by me or typed in chat): read the answer of the next seconds. */
 	public void expectClanInfo() {
-		clanInfoUntil = System.currentTimeMillis() + 8000;
+		clanAskedAt = System.currentTimeMillis();
+		clanInfoUntil = clanAskedAt + 8000;
+	}
+
+	/**
+	 * "/clan info" was answered since joining: the server named my clan or said I have none. If
+	 * the answer can't be read (8 s after sending), it counts as done too, so nobody gets stuck.
+	 */
+	public boolean clanInfoDone() {
+		return clanAnswered || (clanAskedAt > 0 && System.currentTimeMillis() - clanAskedAt > 8000);
+	}
+
+	/** Sent, answer not there yet. */
+	public boolean clanInfoWaiting() {
+		return !clanAnswered && clanAskedAt > 0 && System.currentTimeMillis() - clanAskedAt <= 8000;
+	}
+
+	/** The server answered "/clan info" with a clan (not with "no clan"). */
+	public boolean clanFound() {
+		return clanAnswered && config.clanTag != null;
 	}
 
 	/** Every chat line from the server: picks out the tag while an answer to "/clan info" is due. */
@@ -804,12 +831,14 @@ public final class Market implements MarketRelay.Handler {
 			config.clanTag = tag;
 			config.save();
 			clanInfoUntil = 0;
+			clanAnswered = true;
 			lastHeartbeat = 0; // share it right away
 			say("Clan erkannt: " + Clan.text(tag));
 		} else if (Clan.saysNoClan(message)) {
 			config.clanTag = null;
 			config.save();
 			clanInfoUntil = 0;
+			clanAnswered = true;
 			lastHeartbeat = 0;
 			say("Du bist in keinem Clan");
 		}
