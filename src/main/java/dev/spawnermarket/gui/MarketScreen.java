@@ -22,6 +22,9 @@ import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Util;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -39,7 +42,8 @@ public class MarketScreen extends Screen {
 	private static final int ROW_H = 26, ROW_STEP = 29;
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREEN = 0xFF3DDC84, ORANGE = 0xFFE0A030, RED = 0xFFF0506E;
-	private static final int DRAWER_H = 168;
+	private static final int DRAWER_H = 192;
+	private static final Identifier DISCORD_LOGO = Identifier.fromNamespaceAndPath("spawnermarket", "textures/gui/discord.png");
 
 	// Theme colors; set from the selected Theme at the start of every frame.
 	private static int TEXT, TEXT_SOFT, TEXT_FAINT, ICON;
@@ -912,6 +916,16 @@ public class MarketScreen extends Screen {
 				.append(tag == null ? Component.literal("keiner").withColor(TEXT_FAINT) : tag);
 		g.drawString(font, clan, dx + 12, cy + 3, TEXT, false);
 		smallButton(g, mx, my, dx + dw - 12, cy, "Aktualisieren", ACCENT, 0, height, market::requestClanInfo);
+
+		// Our Discord, in Discord's own blurple with its logo.
+		int jy = dy + 166;
+		boolean hd = hover(mx, my, dx + 12, jy, dw - 24, 18);
+		Glass.pill(g, dx + 12, jy, dw - 24, 18, 0xFF6C78F5, 0xFF4752C4, hd);
+		String label = "Discord beitreten";
+		int lx = dx + dw / 2 - (13 + 4 + font.width(label)) / 2;
+		g.blit(RenderPipelines.GUI_TEXTURED, DISCORD_LOGO, lx, jy + 3, 0, 0, 13, 13, 13, 13);
+		g.drawString(font, label, lx + 17, jy + 5, WHITE, false);
+		hit(dx + 12, jy, dw - 24, 18, () -> Util.getPlatform().openUri(java.net.URI.create(WelcomeScreen.DISCORD)));
 		g.disableScissor();
 	}
 
