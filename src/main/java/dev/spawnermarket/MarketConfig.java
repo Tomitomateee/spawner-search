@@ -27,8 +27,36 @@ public class MarketConfig {
 	/** Server commands used by the TPA buttons (without the slash). */
 	public String tpaCommand = "tpa";
 	public String tpaAcceptCommand = "tpaccept";
-	/** Toast + sound for private messages and TPA requests while the menu is closed. */
+	/** Master switch for the banners at the top of the screen (and their sound). */
 	public boolean notifications = true;
+
+	// Which events get a banner.
+	public boolean notifyOffers = true;
+	public boolean notifySell = true;
+	public boolean notifyBuy = true;
+	/** Only offers on the server I'm on right now. */
+	public boolean notifyMyServer = true;
+	/** Only sell offers at or below the average price, buy offers at or above it; no average yet counts as good. */
+	public boolean notifyGoodPrices = false;
+	/** Spawner keys to watch ({@code Spawners.Type.key}); empty = all. */
+	public List<String> notifyTypes = new ArrayList<>();
+	/** Someone opens a trade chat with me. */
+	public boolean notifyTrades = true;
+	public boolean notifyMessages = true;
+	/** A trade of mine ends: deal confirmed or ended without one. */
+	public boolean notifyTradeEnd = true;
+	public boolean notifyTpa = true;
+	/** Every new deal on the market (confirmed by both sides). */
+	public boolean notifyAllDeals = false;
+
+	// How the banners look.
+	/** 0 = top left, 1 = top center, 2 = top right. */
+	public int bannerPos = 1;
+	/** How long one banner stays, in seconds (3–15). */
+	public int bannerSeconds = 6;
+	public boolean bannerSound = true;
+	/** Also on top of other menus (inventory, chests, pause), not only in game. */
+	public boolean bannerInMenus = true;
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */
 	public Map<String, Trade> trades = new LinkedHashMap<>();
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
@@ -47,6 +75,9 @@ public class MarketConfig {
 					if (cfg.trades == null) cfg.trades = new LinkedHashMap<>();
 					if (cfg.closedTrades == null) cfg.closedTrades = new ArrayList<>();
 					if (cfg.alarms == null) cfg.alarms = new LinkedHashMap<>();
+					if (cfg.notifyTypes == null) cfg.notifyTypes = new ArrayList<>();
+					cfg.bannerPos = Math.floorMod(cfg.bannerPos, 3);
+					cfg.bannerSeconds = Math.max(3, Math.min(15, cfg.bannerSeconds));
 					return cfg;
 				}
 			}
@@ -96,18 +127,27 @@ public class MarketConfig {
 		public boolean buy = true;
 	}
 
-	/** One chat line; {@code from} empty = a note from the mod itself. */
+	/**
+	 * One chat line; {@code from} empty = a note from the mod itself. {@code ts} is my clock and
+	 * only orders the chat; {@code sent} is the sender's clock and recognizes the message when the
+	 * broker hands it out again (0 in chats from 1.1.0).
+	 */
 	public static class Msg {
 		public String from = "", name = "", text = "";
-		public long ts;
+		public long ts, sent;
 
 		public Msg() {}
 
 		public Msg(String from, String name, String text, long ts) {
+			this(from, name, text, ts, ts);
+		}
+
+		public Msg(String from, String name, String text, long ts, long sent) {
 			this.from = from;
 			this.name = name;
 			this.text = text;
 			this.ts = ts;
+			this.sent = sent;
 		}
 	}
 }

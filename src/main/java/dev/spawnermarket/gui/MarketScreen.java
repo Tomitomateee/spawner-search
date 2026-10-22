@@ -9,6 +9,8 @@ import dev.spawnermarket.Market.Offer;
 import dev.spawnermarket.Market.PriceStats;
 import dev.spawnermarket.Market.TpaRequest;
 import dev.spawnermarket.Market.Vouch;
+import dev.spawnermarket.MarketConfig;
+import dev.spawnermarket.Notifications;
 import dev.spawnermarket.Spawners;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -34,7 +36,7 @@ public class MarketScreen extends Screen {
 	private static final int ROW_H = 26, ROW_STEP = 29;
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREEN = 0xFF3DDC84, ORANGE = 0xFFE0A030, RED = 0xFFF0506E;
-	private static final int DRAWER_H = 128;
+	private static final int DRAWER_H = 146;
 
 	// Theme colors; set from the selected Theme at the start of every frame.
 	private static int TEXT, TEXT_SOFT, TEXT_FAINT, ICON;
@@ -64,7 +66,7 @@ public class MarketScreen extends Screen {
 	/** A clickable area recorded while drawing; clicks are matched against the last frame's list. */
 	private record Hit(int x, int y, int w, int h, Runnable action) {}
 
-	private enum Mode { MARKET, CREATE, ALARMS }
+	private enum Mode { MARKET, CREATE, NOTIFY, ALARMS }
 
 	private final Market market;
 	private final List<Hit> hits = new ArrayList<>();
@@ -84,6 +86,8 @@ public class MarketScreen extends Screen {
 	private boolean drawerOpen, draggingOpacity;
 	private float drawerAnim;
 	private long lastFrame;
+	// Notification settings page
+	private int notifyTab, testBanner;
 
 	// Trade chats
 	private String openTrade;
@@ -189,6 +193,11 @@ public class MarketScreen extends Screen {
 		panel(g, vx, py, sw, H);
 		renderVouches(g, mx, my);
 		renderDrawer(g, mx, my);
+		if (mode == Mode.NOTIFY) {
+			// Banners are hidden while this menu is open – except here, as a preview.
+			g.nextStratum();
+			Banner.render(g, market.config());
+		}
 		String msg = market.message();
 		if (msg != null) {
 			g.nextStratum();
@@ -222,15 +231,19 @@ public class MarketScreen extends Screen {
 		int gearStep = Math.round(drawerAnim * 16) + (hg && drawerAnim == 0 ? 2 : 0);
 		ShapeCache.gear(g, px + 11, py + 8, 14, gearStep, hg || drawerOpen ? ACCENT : TEXT_FAINT);
 		hit(px + 10, py + 7, 16, 16, () -> drawerOpen = !drawerOpen);
-		g.drawString(font, "Spawnerhandel", px + 30, py + 12, TEXT_FAINT, false);
-		Glass.circle(g, px + 30 + font.width("Spawnerhandel") + 4, py + 13, 4, market.connected() ? GREEN : ORANGE);
+		String title = mode == Mode.NOTIFY ? "Benachrichtigungen" : "Spawnerhandel";
+		g.drawString(font, title, px + 30, py + 12, TEXT_FAINT, false);
+		Glass.circle(g, px + 30 + font.width(title) + 4, py + 13, 4, market.connected() ? GREEN : ORANGE);
 		boolean hc = hover(mx, my, px + PW - 28, py + 9, 16, 14);
 		Glass.roundRect(g, px + PW - 27, py + 15, 12, 2, 1, hc ? ACCENT : TEXT_FAINT);
 		hit(px + PW - 28, py + 9, 16, 14, this::onClose);
 
-		if (mode == Mode.CREATE) renderCreate(g, mx, my);
-		else if (mode == Mode.ALARMS) renderAlarms(g, mx, my);
-		else renderMarketTabs(g, mx, my);
+		switch (mode) {
+			case CREATE -> renderCreate(g, mx, my);
+			case NOTIFY -> renderNotify(g, mx, my);
+			case ALARMS -> renderAlarms(g, mx, my);
+			default -> renderMarketTabs(g, mx, my);
+		}
 	}
 
 	private void renderMarketTabs(GuiGraphics g, int mx, int my) {
@@ -550,6 +563,135 @@ public class MarketScreen extends Screen {
 		setFocused(null);
 	}
 
+	// ---------------------------------------------------------------- notification settings
+
+	private void openNotify() {
+		mode = Mode.NOTIFY;
+		drawerOpen = false;
+		setFocused(null);
+	}
+
+	private void renderNotify(GuiGraphics g, int mx, int my) {
+		MarketConfig c = market.config();
+		segmented(g, mx, my, px + 12, py + 28, PW - 24, new String[] { "Angebote", "Trades", "Anzeige" }, notifyTab, i -> notifyTab = i);
+		switch (notifyTab) {
+			case 1 -> {
+				setting(g, py + 54, "Neue Trades", c.notifyTrades, () -> c.notifyTrades = !c.notifyTrades);
+				hint(g, py + 69, "Jemand will über dein Angebot handeln");
+				setting(g, py + 86, "Trade-Nachrichten", c.notifyMessages, () -> c.notifyMessages = !c.notifyMessages);
+				setting(g, py + 106, "Deal / Trade beendet", c.notifyTradeEnd, () -> c.notifyTradeEnd = !c.notifyTradeEnd);
+				setting(g, py + 126, "TPA-Anfragen", c.notifyTpa, () -> c.notifyTpa = !c.notifyTpa);
+				setting(g, py + 146, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals);
+				hint(g, py + 161, "Mit Server- und Spawner-Filter");
+			}
+			case 2 -> {
+				g.drawString(font, "Position oben", px + 14, py + 56, TEXT, false);
+				segmented(g, mx, my, px + 12, py + 68, PW - 24, new String[] { "Links", "Mitte", "Rechts" }, c.bannerPos, i -> {
+					c.bannerPos = i;
+					c.save();
+				});
+				g.drawString(font, "Anzeigedauer", px + 14, py + 97, TEXT, false);
+				int rx = px + PW - 12;
+				rx -= smallButton(g, mx, my, rx, py + 94, "+", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds + 1)) + 4;
+				String secs = c.bannerSeconds + " s";
+				g.drawString(font, secs, rx - font.width(secs), py + 97, TEXT_SOFT, false);
+				rx -= font.width(secs) + 4;
+				smallButton(g, mx, my, rx, py + 94, "−", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds - 1));
+				setting(g, py + 116, "Ton", c.bannerSound, () -> c.bannerSound = !c.bannerSound);
+				setting(g, py + 136, "Auch über Menüs", c.bannerInMenus, () -> c.bannerInMenus = !c.bannerInMenus);
+				hint(g, py + 151, "Inventar, Kisten, Pause-Menü…");
+				hint(g, py + 172, "Kein Banner, solange dieses Menü");
+				hint(g, py + 182, "offen ist – es zeigt alles selbst.");
+			}
+			default -> renderNotifyOffers(g, mx, my, c);
+		}
+
+		// Bottom: try it out, back.
+		int by = py + H - 28, cw = 80;
+		boolean ht = hover(mx, my, px + 12, by, cw, 20);
+		Glass.pill(g, px + 12, by, cw, 20, PILL_TOP, PILL_BOTTOM, ht);
+		centered(g, "Test", px + 12 + cw / 2, by + 6, TEXT);
+		hit(px + 12, by, cw, 20, () -> {
+			// Takes turns: two offers, a trade message, a new trade.
+			int i = testBanner++ % 4;
+			Notifications.show(c, Notifications.sample(i), i != 2);
+		});
+		int ox = px + 12 + cw + 8, ow = PW - 24 - cw - 8;
+		boolean ho = hover(mx, my, ox, by, ow, 20);
+		Glass.pill(g, ox, by, ow, 20, ACCENT_TOP, ACCENT_BOTTOM, ho);
+		centered(g, "Fertig", ox + ow / 2, by + 6, WHITE);
+		hit(ox, by, ow, 20, this::backToMarket);
+	}
+
+	private void renderNotifyOffers(GuiGraphics g, int mx, int my, MarketConfig c) {
+		setting(g, py + 54, "Neue Angebote", c.notifyOffers, () -> c.notifyOffers = !c.notifyOffers);
+		int cx = px + 12, fy = py + 74;
+		cx += chip(g, mx, my, cx, fy, "Verkauf", c.notifySell, () -> {
+			c.notifySell = !c.notifySell;
+			c.save();
+		}) + 4;
+		chip(g, mx, my, cx, fy, "Ankauf", c.notifyBuy, () -> {
+			c.notifyBuy = !c.notifyBuy;
+			c.save();
+		});
+		String scope = c.notifyMyServer ? "Nur mein Server" : "Alle Server";
+		int scw = font.width(scope) + 12;
+		chip(g, mx, my, px + PW - 12 - scw, fy, scope, c.notifyMyServer, () -> {
+			c.notifyMyServer = !c.notifyMyServer;
+			c.save();
+		});
+		setting(g, py + 94, "Nur gute Preise", c.notifyGoodPrices, () -> c.notifyGoodPrices = !c.notifyGoodPrices);
+		hint(g, py + 109, "Nur besser als der Schnittpreis");
+
+		// Which spawners: none picked = all. Same cells as in "Angebot erstellen".
+		g.drawString(font, "Spawner", px + 14, py + 126, TEXT, false);
+		if (c.notifyTypes.isEmpty()) {
+			g.drawString(font, "alle", px + PW - 14 - font.width("alle"), py + 126, TEXT_SOFT, false);
+		} else {
+			String reset = c.notifyTypes.size() + " gewählt  ✕";
+			boolean hr = hover(mx, my, px + PW - 16 - font.width(reset), py + 124, font.width(reset) + 4, 12);
+			g.drawString(font, reset, px + PW - 14 - font.width(reset), py + 126, hr ? ACCENT : TEXT_SOFT, false);
+			hit(px + PW - 16 - font.width(reset), py + 124, font.width(reset) + 4, 12, () -> {
+				c.notifyTypes.clear();
+				c.save();
+			});
+		}
+		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, gy = py + 138, ch = 42;
+		for (int i = 0; i < n; i++) {
+			Spawners.Type type = Spawners.ALL[i];
+			int x = gx + i * cell, cw = cell - 2;
+			boolean sel = c.notifyTypes.contains(type.key()), hov = hover(mx, my, x, gy, cw, ch);
+			if (sel) Glass.roundRect(g, x, gy, cw, ch, 6, ACCENT_TOP, ACCENT_BOTTOM);
+			else Glass.roundRect(g, x, gy, cw, ch, 6, hov ? 0x80FFFFFF : 0x40FFFFFF, hov ? 0x60FFFFFF : 0x20FFFFFF);
+			Glass.roundOutline(g, x, gy, cw, ch, 6, 0x90FFFFFF);
+			int is = Math.min(24, cw - 4);
+			type.draw(g, x + (cw - is) / 2, gy + 3, is);
+			smallCentered(g, type.name(), x + cw / 2, gy + 31, sel ? WHITE : TEXT_SOFT, 0.7f);
+			hit(x, gy, cw, ch, () -> {
+				if (!c.notifyTypes.remove(type.key())) c.notifyTypes.add(type.key());
+				c.save();
+			});
+		}
+		hint(g, gy + ch + 6, "Nichts gewählt = alle Spawner");
+	}
+
+	/** On/off row on the settings page; saves right away. */
+	private void setting(GuiGraphics g, int y, String label, boolean on, Runnable flip) {
+		toggleRow(g, px, PW, y, label, on, () -> {
+			flip.run();
+			market.config().save();
+		});
+	}
+
+	private void hint(GuiGraphics g, int y, String text) {
+		g.drawString(font, clip(text, PW - 28), px + 14, y, TEXT_FAINT, false);
+	}
+
+	private void setBannerSeconds(int s) {
+		market.config().bannerSeconds = Math.max(3, Math.min(15, s));
+		market.config().save();
+	}
+
 	// ---------------------------------------------------------------- settings drawer
 
 	private void renderDrawer(GuiGraphics g, int mx, int my) {
@@ -592,9 +734,13 @@ public class MarketScreen extends Screen {
 			market.config().notifications = !market.config().notifications;
 			market.config().save();
 		});
-		g.drawString(font, "Deckkraft", dx + 12, dy + 85, TEXT, false);
+		boolean hn = hover(mx, my, dx + 8, dy + 78, dw - 16, 18);
+		g.drawString(font, "Filter & Anzeige", dx + 20, dy + 83, hn ? ACCENT : TEXT_SOFT, false);
+		g.drawString(font, "›", dx + dw - 18, dy + 83, hn ? ACCENT : TEXT_SOFT, false);
+		hit(dx + 8, dy + 78, dw - 16, 18, this::openNotify);
+		g.drawString(font, "Deckkraft", dx + 12, dy + 103, TEXT, false);
 		int op = market.config().opacity;
-		int ox = dx + 70, ow = dw - 82, oy = dy + 88;
+		int ox = dx + 70, ow = dw - 82, oy = dy + 106;
 		Glass.roundRect(g, ox, oy, ow, 4, 2, 0x50A09CB8);
 		int of = Math.round(ow * (op - 20) / 80f);
 		Glass.roundRect(g, ox, oy, Math.max(4, of), 4, 2, ACCENT_TOP, ACCENT_BOTTOM);
@@ -604,7 +750,7 @@ public class MarketScreen extends Screen {
 			draggingOpacity = true;
 			setOpacity(lastClickX);
 		});
-		int ay = dy + 102;
+		int ay = dy + 122;
 		boolean ha = hover(mx, my, dx + 12, ay, dw - 24, 18);
 		Glass.pill(g, dx + 12, ay, dw - 24, 18, TEAL_TOP, TEAL_BOTTOM, ha);
 		int active = 0;
@@ -768,7 +914,8 @@ public class MarketScreen extends Screen {
 	}
 
 	private void buildChatLines(String key, List<Msg> msgs, int width) {
-		String cacheKey = key + "|" + msgs.size() + "|" + (msgs.isEmpty() ? 0 : msgs.get(msgs.size() - 1).ts) + "|" + width + "|" + ACCENT;
+		// The version changes with every message, also when the chat is full and the oldest drops out.
+		String cacheKey = key + "|" + market.chatVersion() + "|" + width + "|" + ACCENT;
 		if (cacheKey.equals(chatCacheKey)) return;
 		chatCacheKey = cacheKey;
 		String me = Market.me().toString();
