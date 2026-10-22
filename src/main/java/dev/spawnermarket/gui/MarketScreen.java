@@ -1053,8 +1053,9 @@ public class MarketScreen extends Screen {
 		// The list.
 		// Vouching only works for the partner of an open trade.
 		Trade trade = target.equals(me) ? null : market.tradeWith(target);
-		boolean canVouch = trade != null;
-		int top = cy + 38, bottom = canVouch ? py + H - 54 : py + H - 22;
+		String blocked = trade == null ? null : market.vouchBlocker(trade);
+		boolean canVouch = trade != null && blocked == null;
+		int top = cy + 38, bottom = canVouch ? py + H - 54 : trade != null ? py + H - 34 : py + H - 22;
 		List<Vouch> list = market.vouchesFor(target);
 		vouchScroll = Math.max(0, Math.min(vouchScroll, Math.max(0, list.size() - 1)));
 		if (list.isEmpty()) {
@@ -1090,8 +1091,14 @@ public class MarketScreen extends Screen {
 		g.disableScissor();
 
 		if (!canVouch) {
-			centered(g, target.equals(me) ? "Das sind deine Vouches" : "Vouchen geht nur nach einem Trade",
-					vx + sw / 2, py + H - 16, TEXT_FAINT);
+			String why = target.equals(me) ? "Das sind deine Vouches" : trade == null ? "Vouchen geht nur nach einem Trade" : blocked;
+			centered(g, clip(why, sw - 16), vx + sw / 2, py + H - 16, TEXT_FAINT);
+			if (trade != null && blocked != null && blocked.startsWith("Erst")) {
+				// Progress towards the messages needed before the vouch buttons show up.
+				int n = Math.min(Market.chatMessages(trade), Market.VOUCH_MIN_MESSAGES);
+				String p = n + "/" + Market.VOUCH_MIN_MESSAGES + (n >= Market.VOUCH_MIN_MESSAGES && !Market.bothWrote(trade) ? " · beide müssen schreiben" : "");
+				centered(g, clip(p, sw - 16), vx + sw / 2, py + H - 28, ACCENT_TOP);
+			}
 			return;
 		}
 		// Write a vouch: text, then +, neutral or −.

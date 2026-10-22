@@ -301,9 +301,24 @@ public final class Market implements MarketRelay.Handler {
 		return null;
 	}
 
+	/**
+	 * Every vouch that counts: one per trade, whoever sent it first (if both sides vouched at the
+	 * same moment). Vouches from 1.2.0 have no trade and all count.
+	 */
+	private List<Vouch> validVouches() {
+		Map<String, Vouch> first = new HashMap<>();
+		List<Vouch> list = new ArrayList<>();
+		for (Vouch v : vouches.values()) {
+			if (v.trade.isEmpty()) list.add(v);
+			else first.merge(v.trade, v, (a, b) -> a.ts <= b.ts ? a : b);
+		}
+		list.addAll(first.values());
+		return list;
+	}
+
 	public List<Vouch> vouchesFor(UUID target) {
 		List<Vouch> list = new ArrayList<>();
-		for (Vouch v : vouches.values()) if (v.target.equals(target)) list.add(v);
+		for (Vouch v : validVouches()) if (v.target.equals(target)) list.add(v);
 		list.sort(Comparator.comparingLong(Vouch::ts).reversed());
 		return list;
 	}
@@ -312,7 +327,7 @@ public final class Market implements MarketRelay.Handler {
 	public int[] score(UUID target) {
 		Set<String> confirmed = confirmedTrades();
 		int pos = 0, neu = 0, neg = 0;
-		for (Vouch v : vouches.values()) {
+		for (Vouch v : validVouches()) {
 			if (!v.target.equals(target)) continue;
 			if (v.rating > 0) { if (confirmed.contains(v.trade)) pos++; }
 			else if (v.rating == 0) neu++;
@@ -325,7 +340,7 @@ public final class Market implements MarketRelay.Handler {
 	public List<UUID> topVouched(int max) {
 		Set<String> confirmed = confirmedTrades();
 		Map<UUID, Integer> net = new HashMap<>();
-		for (Vouch v : vouches.values()) {
+		for (Vouch v : validVouches()) {
 			if (v.rating > 0 && !confirmed.contains(v.trade)) continue;
 			net.merge(v.target, v.rating, Integer::sum);
 		}
@@ -536,15 +551,41 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	/**
-	 * Vouches the other player of an open trade (only possible in a trade; each trade gets its own
-	 * vouch, so vouches from the same player stack). Positive: the deal went through, it is
+	 * Vouches the other player of an open trade: only in a trade, after at least two chat
+	 * messages (one from each side), and only one vouch per trade. Vouches from the same player
+	 * still stack across trades. Positive: the deal went through, it is
 	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, the chat is
 	 * deleted but the offer stays. Negative: no deal, the chat is deleted.
 	 */
+	/** Messages both sides wrote in a trade chat (the mod's own notes don't count). */
+	public static final int VOUCH_MIN_MESSAGES = 2;
+
+	/** How many real messages the trade chat has, and whether both players wrote something. */
+	public static int chatMessages(Trade t) {
+		int n = 0;
+		for (Msg m : t.messages) if (!m.from.isEmpty()) n++;
+		return n;
+	}
+
+	public static boolean bothWrote(Trade t) {
+		return t.messages.stream().anyMatch(m -> m.from.equals(t.owner))
+				&& t.messages.stream().anyMatch(m -> m.from.equals(t.partner));
+	}
+
+	/** Why I can't vouch in this trade yet, or null when I can. */
+	public String vouchBlocker(Trade t) {
+		String id = t.id, me = me().toString();
+		for (Vouch v : vouches.values()) if (id.equals(v.trade) && me.equals(v.from.toString())) return "Für diesen Trade hast du schon gevoucht";
+		if (chatMessages(t) < VOUCH_MIN_MESSAGES || !bothWrote(t)) return "Erst mind. " + VOUCH_MIN_MESSAGES + " Nachrichten im Chat";
+		return null;
+	}
+
 	public String vouch(UUID target, String targetName, int rating, String text, Trade trade) {
 		if (target.equals(me())) return "Du kannst dich nicht selbst vouchen";
 		if (trade == null || !target.toString().equals(trade.other(me().toString()))) trade = tradeWith(target);
 		if (trade == null) return "Vouchen geht nur nach einem Trade";
+		String blocked = vouchBlocker(trade);
+		if (blocked != null) return blocked;
 		text = clean(text, 120);
 		if (text.length() < 3) return "Schreib kurz, wie der Handel lief";
 		rating = Integer.signum(rating);
