@@ -61,6 +61,10 @@ public final class Market implements MarketRelay.Handler {
 	private final Map<UUID, Presence> presence = new HashMap<>();
 	private final Map<UUID, String> names = new HashMap<>();
 	private final List<TpaRequest> tpas = new ArrayList<>();
+	/** Other players' clan tags, from their online status. */
+	private final Map<UUID, List<Clan.Seg>> clans = new HashMap<>();
+	/** Until when an answer to "/clan info" is expected (I sent or typed the command). */
+	private long clanInfoUntil;
 	/** Offers I was already alarmed about this session. */
 	private final Set<String> alarmed = new HashSet<>();
 	/** Which trade chat the GUI is showing right now (no unread count for it). */
@@ -751,7 +755,52 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("nm", myName());
 		o.addProperty("sv", server());
 		o.addProperty("ts", System.currentTimeMillis());
+		if (config.clanTag != null) o.add("cl", Clan.toJson(config.clanTag));
 		relay.publish("p/" + me(), o, true);
+	}
+
+	// ================================================================ clan
+
+	/** A player's clan tag, or null. */
+	public List<Clan.Seg> clanTag(UUID uuid) {
+		return uuid.equals(me()) ? config.clanTag : clans.get(uuid);
+	}
+
+	/** Sends "/clan info"; the answer in chat sets my clan tag. */
+	public boolean requestClanInfo() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.player == null || server().isEmpty()) {
+			say("Geht nur auf einem Server");
+			return false;
+		}
+		mc.player.connection.sendCommand("clan info");
+		expectClanInfo();
+		say("/clan info gesendet …");
+		return true;
+	}
+
+	/** "/clan info" was sent (by me or typed in chat): read the answer of the next seconds. */
+	public void expectClanInfo() {
+		clanInfoUntil = System.currentTimeMillis() + 8000;
+	}
+
+	/** Every chat line from the server: picks out the tag while an answer to "/clan info" is due. */
+	public void onServerMessage(net.minecraft.network.chat.Component message) {
+		if (System.currentTimeMillis() > clanInfoUntil) return;
+		List<Clan.Seg> tag = Clan.parseTag(message);
+		if (tag != null) {
+			config.clanTag = tag;
+			config.save();
+			clanInfoUntil = 0;
+			lastHeartbeat = 0; // share it right away
+			say("Clan erkannt: " + Clan.text(tag));
+		} else if (Clan.saysNoClan(message)) {
+			config.clanTag = null;
+			config.save();
+			clanInfoUntil = 0;
+			lastHeartbeat = 0;
+			say("Du bist in keinem Clan");
+		}
 	}
 
 	/** Quitting: mark me offline right away instead of waiting for the broker. */
@@ -940,6 +989,10 @@ public final class Market implements MarketRelay.Handler {
 		long now = System.currentTimeMillis();
 		long seen = stored && o.has("ts") ? Math.min(now, o.get("ts").getAsLong()) : now;
 		presence.put(u, new Presence(clean(str(o, "sv"), 64), true, seen));
+		// No tag in the status = left the clan (or never read it).
+		List<Clan.Seg> tag = Clan.fromJson(o.get("cl"));
+		if (tag == null) clans.remove(u);
+		else if (!u.equals(me())) clans.put(u, tag);
 	}
 
 	private void onTradeMessage(String[] part, JsonObject o, boolean stored) {

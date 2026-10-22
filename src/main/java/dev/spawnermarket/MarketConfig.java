@@ -60,6 +60,10 @@ public class MarketConfig {
 	public boolean bannerInMenus = true;
 	/** Also on top of the Spawnerhandel menu itself. */
 	public boolean bannerInMarket = true;
+	/** My clan tag from "/clan info" (null = none / not read yet), shown before my name. */
+	public List<Clan.Seg> clanTag;
+	/** The welcome window (on hugoSMP) was passed with "Weiter". */
+	public boolean welcomeDone;
 	/** Bumped when a new default has to reach existing configs as well (see load). */
 	public int settingsVersion;
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */

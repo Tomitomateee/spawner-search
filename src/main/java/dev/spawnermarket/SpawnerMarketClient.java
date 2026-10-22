@@ -3,11 +3,14 @@ package dev.spawnermarket;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.spawnermarket.gui.Banner;
 import dev.spawnermarket.gui.MarketScreen;
+import dev.spawnermarket.gui.WelcomeScreen;
 import dev.spawnermarket.selftest.SelfTest;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.KeyMapping;
@@ -56,10 +59,21 @@ public class SpawnerMarketClient implements ClientModInitializer {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> market.goodbye());
 		SelfTest.register(market);
 
+		// "/clan info" – typed or sent by the mod – and its answer give my clan tag.
+		ClientSendMessageEvents.COMMAND.register(command -> {
+			if (command.trim().equalsIgnoreCase("clan info")) market.expectClanInfo();
+		});
+		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+			if (!overlay) market.onServerMessage(message);
+		});
+
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			market.tick();
 			while (open.consumeClick()) {
-				if (client.screen == null) client.setScreen(new MarketScreen(market));
+				if (client.screen != null) continue;
+				// First time on hugoSMP: the welcome window (clan, Discord) before the market.
+				if (!market.config().welcomeDone && WelcomeScreen.isHugoSmp()) client.setScreen(new WelcomeScreen(market));
+				else client.setScreen(new MarketScreen(market));
 			}
 		});
 	}

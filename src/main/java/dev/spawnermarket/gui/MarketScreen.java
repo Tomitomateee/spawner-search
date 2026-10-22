@@ -1,5 +1,6 @@
 package dev.spawnermarket.gui;
 
+import dev.spawnermarket.Clan;
 import dev.spawnermarket.Market;
 import dev.spawnermarket.MarketConfig;
 import dev.spawnermarket.MarketConfig.Msg;
@@ -20,6 +21,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -37,7 +39,7 @@ public class MarketScreen extends Screen {
 	private static final int ROW_H = 26, ROW_STEP = 29;
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREEN = 0xFF3DDC84, ORANGE = 0xFFE0A030, RED = 0xFFF0506E;
-	private static final int DRAWER_H = 146;
+	private static final int DRAWER_H = 168;
 
 	// Theme colors; set from the selected Theme at the start of every frame.
 	private static int TEXT, TEXT_SOFT, TEXT_FAINT, ICON;
@@ -398,7 +400,7 @@ public class MarketScreen extends Screen {
 			boolean online = market.online(o.owner());
 			Glass.circle(g, x + 26, y + 17, 4, online ? GREEN : 0x80A09CB8);
 			String sub = o.name() + " · " + (o.note().isEmpty() ? (myOnly || Market.server().isEmpty() ? o.server() : Spawners.ago(o.ts())) : o.note());
-			g.drawString(font, clip(sub, w - 100), x + 32, y + 15, TEXT_SOFT, false);
+			drawName(g, o.owner(), sub, x + 32, y + 15, w - 100, TEXT_SOFT);
 			// Click on the row: show the trader's vouches on the right.
 			hitClipped(x, y, w, ROW_H, top, bottom, () -> selectTarget(o.owner(), o.name()));
 
@@ -439,7 +441,8 @@ public class MarketScreen extends Screen {
 			Spawners.Type t = Spawners.get(d.type());
 			if (t != null) t.draw(g, x + 3, y + 3, 20);
 			g.drawString(font, clip(d.amount() + "× " + (t == null ? d.type() : t.name()), w - 80), x + 26, y + 4, TEXT, false);
-			g.drawString(font, clip(d.sellerName() + " → " + d.buyerName(), w - 80), x + 26, y + 15, TEXT_SOFT, false);
+			drawLine(g, nameComponent(d.seller(), d.sellerName(), TEXT_SOFT).append(Component.literal(" → ").withColor(TEXT_SOFT))
+					.append(nameComponent(d.buyer(), d.buyerName(), TEXT_SOFT)), x + 26, y + 15, w - 80, TEXT_SOFT);
 			String price = "je " + Spawners.format(d.price());
 			g.drawString(font, price, x + w - 6 - font.width(price), y + 4, ACCENT, false);
 			String ago = Spawners.ago(d.ts());
@@ -901,6 +904,14 @@ public class MarketScreen extends Screen {
 		for (MarketConfig.Alarm a : market.config().alarms.values()) if (a.price > 0) active++;
 		centered(g, "Preiswecker" + (active > 0 ? " · " + active + " aktiv" : "") + "  ›", dx + dw / 2, ay + 5, WHITE);
 		hit(dx + 12, ay, dw - 24, 18, this::openAlarms);
+
+		// Clan tag before my name: read again from "/clan info" (or removed when I left).
+		int cy = dy + 146;
+		MutableComponent tag = Clan.component(market.config().clanTag, TEXT);
+		MutableComponent clan = Component.literal("Clan ").withColor(TEXT)
+				.append(tag == null ? Component.literal("keiner").withColor(TEXT_FAINT) : tag);
+		g.drawString(font, clan, dx + 12, cy + 3, TEXT, false);
+		smallButton(g, mx, my, dx + dw - 12, cy, "Aktualisieren", ACCENT, 0, height, market::requestClanInfo);
 		g.disableScissor();
 	}
 
@@ -1028,7 +1039,7 @@ public class MarketScreen extends Screen {
 		hit(lx + 8, top + 1, 14, 16, () -> openTrade = null);
 		head(g, with, name, lx + 22, top + 3, 12);
 		Glass.circle(g, lx + 37, top + 7, 4, market.online(with) ? GREEN : 0x80A09CB8);
-		g.drawString(font, clip(name, sw - 112), lx + 44, top + 5, TEXT, false);
+		drawName(g, with, name, lx + 44, top + 5, sw - 112, TEXT);
 		hit(lx + 22, top + 1, sw - 112, 16, () -> selectTarget(with, name));
 		int rx = lx + sw - 10;
 		rx -= smallButton(g, mx, my, rx, top + 2, "✕", RED, 0, height, () -> {
@@ -1079,7 +1090,9 @@ public class MarketScreen extends Screen {
 
 	private void buildChatLines(String key, List<Msg> msgs, int width) {
 		// The version changes with every message, also when the chat is full and the oldest drops out.
-		String cacheKey = key + "|" + market.chatVersion() + "|" + width + "|" + ACCENT;
+		StringBuilder tags = new StringBuilder();
+		for (Msg m : msgs) if (!m.from.isEmpty() && tags.indexOf(m.from) < 0) tags.append(m.from).append(Clan.text(market.clanTag(UUID.fromString(m.from))));
+		String cacheKey = key + "|" + market.chatVersion() + "|" + width + "|" + ACCENT + "|" + tags;
 		if (cacheKey.equals(chatCacheKey)) return;
 		chatCacheKey = cacheKey;
 		String me = Market.me().toString();
@@ -1091,7 +1104,10 @@ public class MarketScreen extends Screen {
 				c = Component.literal(m.text).withColor(TEXT_FAINT);
 			} else {
 				int nameColor = me.equals(m.from) ? TEAL_BOTTOM : ACCENT_TOP;
-				c = Component.literal(m.name).withColor(nameColor).append(Component.literal(": " + m.text).withColor(TEXT));
+				// The clan tag in its colors before the name.
+				MutableComponent tag = Clan.component(market.clanTag(UUID.fromString(m.from)), nameColor);
+				c = (tag == null ? Component.empty() : tag.append(" ")).append(Component.literal(m.name).withColor(nameColor))
+						.append(Component.literal(": " + m.text).withColor(TEXT));
 			}
 			for (FormattedCharSequence line : font.split(c, width)) lines.add(new ChatLine(line));
 		}
@@ -1120,7 +1136,7 @@ public class MarketScreen extends Screen {
 			Glass.glass(g, x, y, w, 26, 9, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
 			Spawners.Type type = Spawners.get(t.type);
 			if (type != null) type.draw(g, x + 3, y + 3, 20);
-			g.drawString(font, clip(name, w - 44), x + 26, y + 4, TEXT, false);
+			drawName(g, u, name, x + 26, y + 4, w - 44, TEXT);
 			Msg lastMsg = t.messages.isEmpty() ? null : t.messages.get(t.messages.size() - 1);
 			String sub = lastMsg == null || lastMsg.from.isEmpty()
 					? t.amount + "× " + (type == null ? t.type : type.name()) + " · je " + Spawners.format(t.price)
@@ -1164,7 +1180,7 @@ public class MarketScreen extends Screen {
 		if (t != null) t.draw(g, px + 15, py + 49, 20);
 		g.drawString(font, clip(o.amount() + "× " + (t == null ? o.type() : t.name()) + " · je " + Spawners.format(o.price()), PW - 60),
 				px + 38, py + 50, TEXT, false);
-		g.drawString(font, clip(o.name() + (o.sell() ? " verkauft" : " kauft"), PW - 60), px + 38, py + 61, TEXT_SOFT, false);
+		drawName(g, o.owner(), o.name() + (o.sell() ? " verkauft" : " kauft"), px + 38, py + 61, PW - 60, TEXT_SOFT);
 
 		// The typed number wins; − / + and "Alle" adjust it.
 		int typed = parseInt(amountBox.getValue());
@@ -1263,7 +1279,7 @@ public class MarketScreen extends Screen {
 		g.drawString(font, "‹", vx + 13, cy + 12, hb ? ACCENT : TEXT_SOFT, false);
 		hit(vx + 10, cy + 8, 12, 16, () -> target = null);
 		head(g, target, targetName, vx + 22, cy + 6, 20);
-		g.drawString(font, clip(targetName, sw - 70), vx + 47, cy + 6, TEXT, false);
+		drawName(g, target, targetName, vx + 47, cy + 6, sw - 70, TEXT);
 		int[] score = market.score(target);
 		String pos = "+" + score[0], neu = "○" + score[1], neg = "−" + score[2];
 		int sx0 = vx + 47;
@@ -1305,7 +1321,7 @@ public class MarketScreen extends Screen {
 			centered(g, v.rating() > 0 ? "+" : v.rating() == 0 ? "○" : "−", x + 10, y + 5, WHITE);
 			// A positive vouch counts once both sides confirmed the deal.
 			String from = counts ? v.fromName() : v.fromName() + " (unbestätigt)";
-			g.drawString(font, clip(from, w - 70), x + 18, y + 5, counts ? TEXT : TEXT_FAINT, false);
+			drawName(g, v.from(), from, x + 18, y + 5, w - 70, counts ? TEXT : TEXT_FAINT);
 			String ago = Spawners.ago(v.ts());
 			g.drawString(font, ago, x + w - 6 - font.width(ago), y + 5, TEXT_FAINT, false);
 			for (int j = 0; j < lines.size(); j++) g.drawString(font, lines.get(j), x + 8, y + 16 + j * 10, TEXT_SOFT, false);
@@ -1370,7 +1386,7 @@ public class MarketScreen extends Screen {
 			Glass.glass(g, x, y, w, 19, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
 			centered(g, Integer.toString(vouchScroll + i + 1), x + 9, y + 6, TEXT_FAINT);
 			head(g, u, name, x + 17, y + 4, 11);
-			g.drawString(font, clip(name, w - 70), x + 32, y + 6, TEXT, false);
+			drawName(g, u, name, x + 32, y + 6, w - 70, TEXT);
 			int[] s = market.score(u);
 			String pos = "+" + s[0], neg = "−" + s[2];
 			g.drawString(font, neg, x + w - 6 - font.width(neg), y + 6, RED, false);
@@ -1598,6 +1614,31 @@ public class MarketScreen extends Screen {
 
 	private void centered(GuiGraphics g, String text, int cx, int y, int color) {
 		g.drawString(font, text, cx - font.width(text) / 2, y, color, false);
+	}
+
+	/** A player's name with their clan tag (in its colors) in front. */
+	private MutableComponent nameComponent(UUID uuid, String name, int color) {
+		MutableComponent tag = uuid == null ? null : Clan.component(market.clanTag(uuid), color);
+		MutableComponent n = Component.literal(name).withColor(color);
+		return tag == null ? n : tag.append(" ").append(n);
+	}
+
+	/** {@code text} starts with the player's name: draws their clan tag before it, cut to {@code maxW}. */
+	private void drawName(GuiGraphics g, UUID uuid, String text, int x, int y, int maxW, int color) {
+		drawLine(g, nameComponent(uuid, text, color), x, y, maxW, color);
+	}
+
+	/** One line of styled text, cut with "…" when it's wider than {@code maxW}. */
+	private void drawLine(GuiGraphics g, Component line, int x, int y, int maxW, int color) {
+		if (font.width(line) <= maxW) {
+			g.drawString(font, line, x, y, color, false);
+			return;
+		}
+		int dots = font.width("…");
+		g.drawString(font, net.minecraft.locale.Language.getInstance().getVisualOrder(font.substrByWidth(line, Math.max(0, maxW - dots))),
+				x, y, color, false);
+		int w = font.width(font.substrByWidth(line, Math.max(0, maxW - dots)));
+		g.drawString(font, "…", x + w, y, color, false);
 	}
 
 	private void smallCentered(GuiGraphics g, String text, int cx, int y, int color, float scale) {
