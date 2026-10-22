@@ -907,7 +907,7 @@ public class MarketScreen extends Screen {
 
 		// Clan tag before my name: read again from "/clan info" (or removed when I left).
 		int cy = dy + 146;
-		MutableComponent tag = Clan.component(market.config().clanTag, TEXT);
+		MutableComponent tag = Clan.component(market.myClanTag(), TEXT);
 		MutableComponent clan = Component.literal("Clan ").withColor(TEXT)
 				.append(tag == null ? Component.literal("keiner").withColor(TEXT_FAINT) : tag);
 		g.drawString(font, clan, dx + 12, cy + 3, TEXT, false);

@@ -76,8 +76,6 @@ public class MarketConfig {
 	public int settingsVersion;
 
 	// Per account (transient: never written into the config folder, see Account).
-	/** My clan tag from "/clan info" (null = none / not read yet), shown before my name. */
-	public transient List<Clan.Seg> clanTag;
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */
 	public transient Map<String, Trade> trades = new LinkedHashMap<>();
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
@@ -91,7 +89,6 @@ public class MarketConfig {
 
 	/** The per-account file's content. */
 	private static class Account {
-		List<Clan.Seg> clanTag;
 		Map<String, Trade> trades = new LinkedHashMap<>();
 		List<String> closedTrades = new ArrayList<>();
 		Map<String, Alarm> alarms = new LinkedHashMap<>();
@@ -156,13 +153,11 @@ public class MarketConfig {
 					}
 					if (old.has("closedTrades")) a.closedTrades = GSON.fromJson(old.get("closedTrades"), new TypeToken<List<String>>() {}.getType());
 					if (old.has("alarms")) a.alarms = GSON.fromJson(old.get("alarms"), new TypeToken<Map<String, Alarm>>() {}.getType());
-					if (old.has("clanTag")) a.clanTag = GSON.fromJson(old.get("clanTag"), new TypeToken<List<Clan.Seg>>() {}.getType());
 				} catch (Exception e) {
 					SpawnerMarketClient.LOGGER.warn("Konnte alte Daten nicht übernehmen", e);
 				}
 			}
 		}
-		clanTag = a.clanTag;
 		trades = a.trades == null ? new LinkedHashMap<>() : a.trades;
 		closedTrades = a.closedTrades == null ? new ArrayList<>() : a.closedTrades;
 		alarms = a.alarms == null ? new LinkedHashMap<>() : a.alarms;
@@ -181,7 +176,6 @@ public class MarketConfig {
 		if (account == null) return;
 		try {
 			Account a = new Account();
-			a.clanTag = clanTag;
 			a.trades = trades;
 			a.closedTrades = closedTrades;
 			a.alarms = alarms;

@@ -63,6 +63,11 @@ public final class Market implements MarketRelay.Handler {
 	private final List<TpaRequest> tpas = new ArrayList<>();
 	/** Other players' clan tags, from their online status. */
 	private final Map<UUID, List<Clan.Seg>> clans = new HashMap<>();
+	/**
+	 * "Name belongs to clan", read from "/clan info": kept only in memory, so it lasts until the
+	 * game is restarted and is asked again after that (never saved to a file).
+	 */
+	private static final Map<String, List<Clan.Seg>> CLAN_BY_NAME = new HashMap<>();
 	/** Until when an answer to "/clan info" is expected (I sent or typed the command). */
 	private long clanInfoUntil;
 	/** Since joining hugoSMP: "/clan info" was answered (clan or "no clan"), and when it was sent. */
@@ -788,7 +793,8 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("nm", myName());
 		o.addProperty("sv", server());
 		o.addProperty("ts", System.currentTimeMillis());
-		if (config.clanTag != null) o.add("cl", Clan.toJson(config.clanTag));
+		List<Clan.Seg> mine = myClanTag();
+		if (mine != null) o.add("cl", Clan.toJson(mine));
 		relay.publish("p/" + me(), o, true);
 	}
 
@@ -805,7 +811,12 @@ public final class Market implements MarketRelay.Handler {
 
 	/** A player's clan tag, or null. */
 	public List<Clan.Seg> clanTag(UUID uuid) {
-		return uuid.equals(me()) ? config.clanTag : clans.get(uuid);
+		return uuid.equals(me()) ? myClanTag() : clans.get(uuid);
+	}
+
+	/** My clan tag for the name I play with right now, or null. */
+	public List<Clan.Seg> myClanTag() {
+		return CLAN_BY_NAME.get(myName().toLowerCase(Locale.ROOT));
 	}
 
 	/** Sends "/clan info"; the answer in chat sets my clan tag. */
@@ -842,7 +853,7 @@ public final class Market implements MarketRelay.Handler {
 
 	/** The server answered "/clan info" with a clan (not with "no clan"). */
 	public boolean clanFound() {
-		return clanAnswered && config.clanTag != null;
+		return clanAnswered && myClanTag() != null;
 	}
 
 	/** Every chat line from the server: picks out the tag while an answer to "/clan info" is due. */
@@ -850,15 +861,13 @@ public final class Market implements MarketRelay.Handler {
 		if (System.currentTimeMillis() > clanInfoUntil) return;
 		List<Clan.Seg> tag = Clan.parseTag(message);
 		if (tag != null) {
-			config.clanTag = tag;
-			config.save();
+			CLAN_BY_NAME.put(myName().toLowerCase(Locale.ROOT), tag);
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0; // share it right away
 			say("Clan erkannt: " + Clan.text(tag));
 		} else if (Clan.saysNoClan(message)) {
-			config.clanTag = null;
-			config.save();
+			CLAN_BY_NAME.remove(myName().toLowerCase(Locale.ROOT));
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0;

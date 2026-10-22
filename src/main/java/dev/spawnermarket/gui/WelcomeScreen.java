@@ -75,7 +75,7 @@ public class WelcomeScreen extends Screen {
 		centered(g, cmd, cy + 4, text);
 
 		// Just the name until "/clan info" was answered; then the clan tag in front (if any).
-		MutableComponent tag = market.clanFound() ? Clan.component(market.config().clanTag, WHITE) : null;
+		MutableComponent tag = market.clanFound() ? Clan.component(market.myClanTag(), WHITE) : null;
 		MutableComponent line = Component.literal(tag != null ? "Dein Clan: " : "Dein Name: ").withColor(soft);
 		if (tag != null) line.append(tag).append(" ");
 		line.append(Component.literal(name).withColor(WHITE));
