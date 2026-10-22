@@ -7,7 +7,7 @@ Ein kleines Programm, das den Spawner-Markt aus der Mod **live** in deinen Disco
 | **#verkauf** | Eine Live-Nachricht mit allen Verkaufsangeboten, pro Spawner sortiert, günstigster zuerst |
 | **#ankauf** | Eine Live-Nachricht mit allen Ankaufsgeboten, höchstes Gebot zuerst |
 | **#preise** | Pro Spawner höchster Verkaufs- und Ankaufspreis, Ø aus den Deals, dazu die letzten Deals |
-| **#vouches** | Jeder neue Vouch als eigene Nachricht (positiv erst, wenn der Deal von beiden bestätigt ist) |
+| **#vouches** | Oben eine Live-Übersicht (Top-Händler, wie Vouches zählen), darunter jeder Vouch als eigene Nachricht (positiv erst, wenn der Deal von beiden bestätigt ist) |
 
 Die Nachrichten in #verkauf, #ankauf und #preise werden **bearbeitet**, sobald sich im Markt etwas
 ändert – es kommen also keine hundert neuen Nachrichten, sondern eine, die immer aktuell ist.

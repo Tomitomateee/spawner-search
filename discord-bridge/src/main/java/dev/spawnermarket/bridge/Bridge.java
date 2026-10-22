@@ -264,6 +264,8 @@ public final class Bridge implements Relay.Handler {
 		postBoard("ankauf", offerBoard(false));
 		Map<String, Deal> deals = confirmedDeals();
 		postBoard("preise", priceBoard(deals));
+		// #vouches: a live overview on top, below it every vouch as its own message.
+		postBoard("vouches", vouchBoard(deals));
 		postVouches(deals);
 	}
 
@@ -411,6 +413,38 @@ public final class Bridge implements Relay.Handler {
 		}
 		embeds.add(embed("Letzte Deals", last.isEmpty() ? "Noch keine Deals – ein Deal zählt, sobald beide Händler positiv gevoucht haben."
 				: last.toString(), "55CDB6"));
+		msg.add("embeds", embeds);
+		return msg;
+	}
+
+	/** Top traders by vouches (each counted vouch once), plus how vouching works. */
+	private JsonObject vouchBoard(Map<String, Deal> deals) {
+		JsonObject msg = baseMessage("## ⭐ Vouches\nWer zuverlässig handelt – nach jedem Trade vouchen beide Händler füreinander. "
+				+ "Jeder neue Vouch erscheint unten als eigene Nachricht.");
+		Map<String, int[]> score = new HashMap<>();
+		Map<String, String> names = new HashMap<>();
+		for (Vouch v : countedVouches(deals)) {
+			int[] s = score.computeIfAbsent(v.target, k -> new int[3]);
+			s[v.rating > 0 ? 0 : v.rating == 0 ? 1 : 2]++;
+			if (!v.targetName.isEmpty()) names.put(v.target, v.targetName);
+		}
+		List<String> ranked = new ArrayList<>(score.keySet());
+		ranked.sort(Comparator.comparingInt((String u) -> score.get(u)[0] - score.get(u)[2])
+				.thenComparingInt(u -> score.get(u)[0]).reversed());
+		StringBuilder top = new StringBuilder();
+		for (int i = 0; i < Math.min(15, ranked.size()); i++) {
+			String u = ranked.get(i);
+			int[] s = score.get(u);
+			top.append("**").append(i + 1).append(".** ").append(md(names.getOrDefault(u, "?")))
+					.append(" · ✅ ").append(s[0]).append(" · ⚪ ").append(s[1]).append(" · ❌ ").append(s[2]).append('\n');
+		}
+		JsonArray embeds = new JsonArray();
+		embeds.add(embed("🏆 Top-Händler", top.isEmpty() ? "Noch keine Vouches." : top.toString(), "F2B84B"));
+		embeds.add(embed("So zählen Vouches",
+				"✅ **Positiv** – der Deal hat geklappt. Zählt erst, wenn beide Händler positiv gevoucht haben.\n"
+						+ "⚪ **Neutral** – der Trade kam nicht zustande.\n"
+						+ "❌ **Negativ** – der Trade lief schlecht.\n"
+						+ "Vouchen geht nur in der Mod, nach einem Trade-Chat mit mindestens 2 Nachrichten.", "7C5CF2"));
 		msg.add("embeds", embeds);
 		return msg;
 	}
