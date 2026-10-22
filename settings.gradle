@@ -9,4 +9,4 @@ pluginManagement {
 	}
 }
 
-rootProject.name = 'spawner-market'
+rootProject.name = 'spawner-search'

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "id": "spawnermarket",
+  "id": "spawnersearch",
   "version": "${version}",
-  "name": "Spawner Market",
+  "name": "Spawner Search",
   "description": "Spawnerhandel im Spiel: Angebote, Deals, Spawner-Preise, externer Chat, Vouches und TPA – mit Liquid-Glass-Oberfläche.",
   "authors": ["tomip"],
   "license": "MIT",
   "environment": "client",
   "entrypoints": {
-    "client": ["dev.spawnermarket.SpawnerMarketClient"]
+    "client": ["dev.spawnersearch.SpawnerSearchClient"]
   },
   "depends": {
     "fabricloader": ">=0.16.10",

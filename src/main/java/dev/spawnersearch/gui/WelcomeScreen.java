@@ -1,7 +1,7 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
-import dev.spawnermarket.Clan;
-import dev.spawnermarket.Market;
+import dev.spawnersearch.Clan;
+import dev.spawnersearch.Market;
 import net.minecraft.util.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -22,7 +22,7 @@ public class WelcomeScreen extends Screen {
 	private int x, y;
 
 	public WelcomeScreen(Market market) {
-		super(Component.literal("Spawner Market"));
+		super(Component.literal("Spawner Search"));
 		this.market = market;
 	}
 
@@ -56,7 +56,7 @@ public class WelcomeScreen extends Screen {
 
 		// Name of the mod, big.
 		float s = 1.6f;
-		String title = "Spawner Market";
+		String title = "Spawner Search";
 		g.pose().pushMatrix();
 		g.pose().translate(x + W / 2f - font.width(title) * s / 2f, y + 16);
 		g.pose().scale(s, s);

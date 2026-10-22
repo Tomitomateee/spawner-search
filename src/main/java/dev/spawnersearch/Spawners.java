@@ -1,4 +1,4 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -18,7 +18,7 @@ public final class Spawners {
 	}
 
 	private static Type type(String key, String name) {
-		return new Type(key, name, Identifier.fromNamespaceAndPath("spawnermarket", "textures/gui/spawner/" + key + ".png"));
+		return new Type(key, name, Identifier.fromNamespaceAndPath("spawnersearch", "textures/gui/spawner/" + key + ".png"));
 	}
 
 	public static final Type[] ALL = {

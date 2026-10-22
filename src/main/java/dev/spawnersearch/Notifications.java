@@ -1,11 +1,11 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
-import dev.spawnermarket.Market.Deal;
-import dev.spawnermarket.Market.Notice;
-import dev.spawnermarket.Market.Offer;
-import dev.spawnermarket.MarketConfig.Trade;
-import dev.spawnermarket.gui.Banner;
-import dev.spawnermarket.gui.MarketScreen;
+import dev.spawnersearch.Market.Deal;
+import dev.spawnersearch.Market.Notice;
+import dev.spawnersearch.Market.Offer;
+import dev.spawnersearch.MarketConfig.Trade;
+import dev.spawnersearch.gui.Banner;
+import dev.spawnersearch.gui.MarketScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.sounds.SoundEvents;

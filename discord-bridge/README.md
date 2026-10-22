@@ -1,6 +1,6 @@
-# Spawner Market → Discord
+# Spawner Search → Discord
 
-Ein kleines Programm, das den Spawner-Markt aus der Mod **live** in deinen Discord bringt:
+Ein kleines Programm, das den Spawner-Search aus der Mod **live** in deinen Discord bringt:
 
 | Kanal | Was dort steht |
 |---|---|
@@ -27,7 +27,7 @@ installiert hast, reicht meist).
 1. **Webhooks anlegen** – für jeden der vier Kanäle in Discord:
    Kanal → ⚙️ *Kanal bearbeiten* → *Integrationen* → *Webhooks* → *Neuer Webhook* →
    *Webhook-URL kopieren*.
-2. Die Zip in einen eigenen Ordner entpacken (`spawner-market-discord.jar`, `start.bat`, `stop.bat` /
+2. Die Zip in einen eigenen Ordner entpacken (`spawner-search-discord.jar`, `start.bat`, `stop.bat` /
    `start.sh`, `einrichten.bat`).
 3. `einrichten.bat` doppelklicken: Es fragt nacheinander nach den vier URLs (einfügen mit
    Rechtsklick) und nach deinem Server und speichert alles in `bridge.json`. Oder von Hand:
@@ -61,20 +61,20 @@ installiert hast, reicht meist).
    - **Beenden:** `stop.bat` (sie hört nach ein paar Sekunden auf).
    - **Was sie tut** (aktualisiert, aufgefrischt, Fehler von Discord): steht in `bridge.log`.
    - Startest du sie zweimal, beendet sich der zweite Start von selbst.
-   - **Zum Zuschauen** im Fenster: `java -jar spawner-market-discord.jar` in einer
+   - **Zum Zuschauen** im Fenster: `java -jar spawner-search-discord.jar` in einer
      Eingabeaufforderung im Ordner.
 6. **Autostart** (startet bei jeder Windows-Anmeldung mit): `Win+R` → `shell:startup` → Enter.
    In den Ordner, der aufgeht, mit **Rechtsklick → Neu → Verknüpfung** eine Verknüpfung anlegen
    und als Speicherort eintragen:
 
    ```
-   javaw -jar "C:\Pfad\zu\spawner-market-discord.jar"
+   javaw -jar "C:\Pfad\zu\spawner-search-discord.jar"
    ```
 
-   Name z. B. „Spawner-Markt Discord“ → Fertig stellen. Ein Virenscanner kann fragen, ob er das
+   Name z. B. „Spawner-Search Discord“ → Fertig stellen. Ein Virenscanner kann fragen, ob er das
    erlauben soll – das ist dieser Start der Bridge.
 
-**Probelauf ohne Discord:** `java -jar spawner-market-discord.jar --dry-run` zeigt im Fenster,
+**Probelauf ohne Discord:** `java -jar spawner-search-discord.jar --dry-run` zeigt im Fenster,
 was gepostet würde, und beendet sich.
 
 ## Gut zu wissen
@@ -96,4 +96,4 @@ was gepostet würde, und beendet sich.
 ../gradlew -p . build
 ```
 
-Die fertige Datei liegt dann in `build/libs/spawner-market-discord.jar`.
+Die fertige Datei liegt dann in `build/libs/spawner-search-discord.jar`.

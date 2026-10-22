@@ -2,8 +2,8 @@
 Set-Location -LiteralPath $PSScriptRoot
 $pattern = '^https://(ptb\.|canary\.)?(discord|discordapp)\.com/api/webhooks/\d+/[\w-]+$'
 Write-Host ''
-Write-Host 'Spawner-Markt Discord einrichten' -ForegroundColor Cyan
-Write-Host 'In Discord: Kanal bearbeiten > Integrationen > WebHooks > Spawner-Markt > WebHook-URL kopieren.'
+Write-Host 'Spawner-Search Discord einrichten' -ForegroundColor Cyan
+Write-Host 'In Discord: Kanal bearbeiten > Integrationen > WebHooks > Spawner-Search > WebHook-URL kopieren.'
 Write-Host 'Dann hier mit Rechtsklick (oder Strg+V) einfuegen und Enter druecken.'
 Write-Host ''
 $hooks = [ordered]@{}

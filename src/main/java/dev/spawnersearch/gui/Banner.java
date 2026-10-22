@@ -1,8 +1,8 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
-import dev.spawnermarket.Market;
-import dev.spawnermarket.MarketConfig;
-import dev.spawnermarket.Spawners;
+import dev.spawnersearch.Market;
+import dev.spawnersearch.MarketConfig;
+import dev.spawnersearch.Spawners;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;

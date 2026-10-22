@@ -1,4 +1,4 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -48,7 +48,7 @@ public final class ShapeCache {
 					img.setPixel(px, py, shader.color((px + 0.5f) / s, (py + 0.5f) / s));
 				}
 			}
-			id = Identifier.fromNamespaceAndPath("spawnermarket", "shape/" + (counter++));
+			id = Identifier.fromNamespaceAndPath("spawnersearch", "shape/" + (counter++));
 			Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(id::toString, img));
 			CACHE.put(key, id);
 		}
@@ -97,7 +97,7 @@ public final class ShapeCache {
 				img.setPixel(px, py, shader.color((px + 0.5f) / s, (py + 0.5f) / s));
 			}
 		}
-		id = Identifier.fromNamespaceAndPath("spawnermarket", "shape/" + (counter++));
+		id = Identifier.fromNamespaceAndPath("spawnersearch", "shape/" + (counter++));
 		Minecraft.getInstance().getTextureManager().register(id, new DynamicTexture(id::toString, img));
 		CACHE.put(key, id);
 		return id;

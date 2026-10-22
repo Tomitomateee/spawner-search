@@ -1,18 +1,18 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
-import dev.spawnermarket.Clan;
-import dev.spawnermarket.Market;
-import dev.spawnermarket.MarketConfig;
-import dev.spawnermarket.MarketConfig.Msg;
-import dev.spawnermarket.MarketConfig.Trade;
-import dev.spawnermarket.Market.Deal;
-import dev.spawnermarket.Market.Offer;
-import dev.spawnermarket.Market.PriceStats;
-import dev.spawnermarket.Market.TpaRequest;
-import dev.spawnermarket.Market.Vouch;
-import dev.spawnermarket.MarketConfig;
-import dev.spawnermarket.Notifications;
-import dev.spawnermarket.Spawners;
+import dev.spawnersearch.Clan;
+import dev.spawnersearch.Market;
+import dev.spawnersearch.MarketConfig;
+import dev.spawnersearch.MarketConfig.Msg;
+import dev.spawnersearch.MarketConfig.Trade;
+import dev.spawnersearch.Market.Deal;
+import dev.spawnersearch.Market.Offer;
+import dev.spawnersearch.Market.PriceStats;
+import dev.spawnersearch.Market.TpaRequest;
+import dev.spawnersearch.Market.Vouch;
+import dev.spawnersearch.MarketConfig;
+import dev.spawnersearch.Notifications;
+import dev.spawnersearch.Spawners;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
@@ -43,7 +43,7 @@ public class MarketScreen extends Screen {
 	private static final int WHITE = 0xFFFFFFFF;
 	private static final int GREEN = 0xFF3DDC84, ORANGE = 0xFFE0A030, RED = 0xFFF0506E;
 	private static final int DRAWER_H = 192;
-	private static final Identifier DISCORD_LOGO = Identifier.fromNamespaceAndPath("spawnermarket", "textures/gui/discord.png");
+	private static final Identifier DISCORD_LOGO = Identifier.fromNamespaceAndPath("spawnersearch", "textures/gui/discord.png");
 
 	// Theme colors; set from the selected Theme at the start of every frame.
 	private static int TEXT, TEXT_SOFT, TEXT_FAINT, ICON;
@@ -119,7 +119,7 @@ public class MarketScreen extends Screen {
 	private final EditBox[] alarmBoxes = new EditBox[Spawners.ALL.length];
 
 	public MarketScreen(Market market) {
-		super(Component.literal("Spawner Market"));
+		super(Component.literal("Spawner Search"));
 		this.market = market;
 		applyTheme(Theme.current(market.config()), market.config().opacity);
 	}

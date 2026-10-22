@@ -1,4 +1,4 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
 import net.minecraft.client.gui.GuiGraphics;
 

@@ -27,7 +27,7 @@ tasks.register('prodClient', net.fabricmc.loom.task.prod.ClientProductionRunTask
 	runDir = layout.projectDirectory.dir('run-prod')
 	programArgs.addAll('--version', project.minecraft_version, '--accessToken', '0', '--username', 'Selbsttest')
 	if (project.hasProperty('selftest')) {
-		jvmArgs.add('-Dspawnermarket.selftest=full')
+		jvmArgs.add('-Dspawnersearch.selftest=full')
 		programArgs.addAll('--width', '1440', '--height', '810')
 	}
 	if (project.hasProperty('world')) {

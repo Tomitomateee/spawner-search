@@ -1,4 +1,4 @@
-package dev.spawnermarket.bridge;
+package dev.spawnersearch.bridge;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -38,7 +38,7 @@ final class Discord {
 	private static HttpResponse<String> send(HttpRequest.Builder b, String method, JsonObject message) {
 		HttpRequest req = b.timeout(Duration.ofSeconds(20))
 				.header("Content-Type", "application/json")
-				.header("User-Agent", "SpawnerMarketBridge/1.0")
+				.header("User-Agent", "SpawnerSearchBridge/1.0")
 				.method(method, HttpRequest.BodyPublishers.ofString(message.toString()))
 				.build();
 		for (int attempt = 0; attempt < 4; attempt++) {

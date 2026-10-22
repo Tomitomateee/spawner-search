@@ -1,10 +1,10 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.spawnermarket.gui.Banner;
-import dev.spawnermarket.gui.MarketScreen;
-import dev.spawnermarket.gui.WelcomeScreen;
-import dev.spawnermarket.selftest.SelfTest;
+import dev.spawnersearch.gui.Banner;
+import dev.spawnersearch.gui.MarketScreen;
+import dev.spawnersearch.gui.WelcomeScreen;
+import dev.spawnersearch.selftest.SelfTest;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -20,9 +20,9 @@ import org.lwjgl.glfw.GLFW;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SpawnerMarketClient implements ClientModInitializer {
-	public static final String MOD_ID = "spawnermarket";
-	public static final Logger LOGGER = LoggerFactory.getLogger("Spawner Market");
+public class SpawnerSearchClient implements ClientModInitializer {
+	public static final String MOD_ID = "spawnersearch";
+	public static final Logger LOGGER = LoggerFactory.getLogger("Spawner Search");
 
 	private static Market market;
 

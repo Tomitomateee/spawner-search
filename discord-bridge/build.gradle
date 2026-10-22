@@ -2,7 +2,7 @@ plugins {
 	id 'java'
 }
 
-group = 'dev.spawnermarket'
+group = 'dev.spawnersearch'
 version = '1.0.0'
 
 repositories {
@@ -18,11 +18,11 @@ tasks.withType(JavaCompile).configureEach {
 	options.release = 21
 }
 
-// One jar with Gson inside: "java -jar spawner-market-discord.jar" is all it takes.
+// One jar with Gson inside: "java -jar spawner-search-discord.jar" is all it takes.
 jar {
-	archiveBaseName = 'spawner-market-discord'
+	archiveBaseName = 'spawner-search-discord'
 	archiveVersion = ''
-	manifest.attributes 'Main-Class': 'dev.spawnermarket.bridge.Bridge'
+	manifest.attributes 'Main-Class': 'dev.spawnersearch.bridge.Bridge'
 	from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
 	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class', 'META-INF/versions/**/module-info.class'

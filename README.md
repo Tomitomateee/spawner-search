@@ -1,4 +1,4 @@
-# Spawner Market – Spawnerhandel in Minecraft (Fabric 1.21.11)
+# Spawner Search – Spawnerhandel in Minecraft (Fabric 1.21.11)
 
 Spawner kaufen und verkaufen direkt im Spiel – mit derselben Liquid-Glass-Oberfläche wie der
 Liquid Player. **Reine Client-Mod:** Der Server braucht nichts, alles läuft über ein öffentliches
@@ -7,8 +7,13 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.4.9.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-search-1.5.0.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
+
+**Von Spawner Market (bis 1.4.9) umsteigen:** die alte `spawner-market-….jar` aus dem `mods`-Ordner
+löschen – sonst laufen beide Mods gleichzeitig. Einstellungen, Trades, Clan und Preiswecker werden beim
+ersten Start einmalig übernommen. Ab 1.5.0 nutzt die Mod einen eigenen Relay-Kanal: Spieler mit der
+alten Spawner-Market-Version sieht man nicht mehr, alle sollten auf Spawner Search wechseln.
 
 ## Willkommen & Clan (hugoSMP)
 
@@ -17,7 +22,7 @@ Jedes Mal, wenn du hugoSMP joinst, kommt beim ersten **H** ein Willkommensfenste
 tippst ihn selbst in den Chat). Die Mod liest aus der Antwort dein **Clan-Kürzel** mit seinen
 Farben, z. B. **[FWM5]**, und zeigt es ab dann überall in der Mod **vor deinem Namen** – auch bei
 den anderen Spielern mit der Mod. **Weiter** wird erst frei, wenn der Server auf /clan info geantwortet hat – auch wenn du in keinem Clan bist (dann bleibt nur dein Name, ohne Kürzel). **Discord**
-öffnet den Spawner-Market-Discord. Danach geht es direkt ins Menü.
+öffnet den Spawner-Search-Discord. Danach geht es direkt ins Menü.
 
 Clan gewechselt? **Zahnrad → Clan → Aktualisieren** liest „/clan info“ neu.
 
@@ -104,11 +109,11 @@ Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 
 ## Einstellungen
 
-`config/spawner-market.json` (nur Einstellungen – das darf in ein Modpack):
+`config/spawner-search.json` (nur Einstellungen – das darf in ein Modpack):
 - `tpaCommand` / `tpaAcceptCommand`: falls dein Server andere Befehle hat (Standard `tpa` / `tpaccept`).
 
 **Pro Minecraft-Account** in deinem Benutzerordner, nicht im Spiel- oder Modpack-Ordner:
-`C:\Users\<du>\.spawner-market\accounts\<UUID>.json` – Clan, offene Trade-Chats, Preiswecker und was
+`C:\Users\<du>\.spawner-search\accounts\<UUID>.json` – Clan, offene Trade-Chats, Preiswecker und was
 du veröffentlicht hast (wird nach jedem Verbinden neu gesendet). So nimmt ein weitergegebenes
 Modpack nie deine Trades mit, und mehrere Accounts auf einem PC haben jeweils ihre eigenen Daten.
 Ältere Daten aus der Config werden einmalig dorthin verschoben.

@@ -1,4 +1,4 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -35,11 +35,11 @@ public final class MarketRelay {
 
 	private static final String HOST = "broker.emqx.io";
 	private static final int PORT = 1883, KEEPALIVE_S = 60;
-	public static final String ROOT = "spawnermarket/" + hash("spawnermarket:v1") + "/";
+	public static final String ROOT = "spawnersearch/" + hash("spawnersearch:v1") + "/";
 
 	private final Handler handler;
 	private final ExecutorService sender = Executors.newSingleThreadExecutor(r -> {
-		Thread t = new Thread(r, "spawnermarket-send");
+		Thread t = new Thread(r, "spawnersearch-send");
 		t.setDaemon(true);
 		return t;
 	});
@@ -50,7 +50,7 @@ public final class MarketRelay {
 	/** Packet id → when it was sent, until the broker confirms it (PUBACK). */
 	private final java.util.Map<Integer, Long> unconfirmed = new java.util.concurrent.ConcurrentHashMap<>();
 	private final java.util.concurrent.ScheduledExecutorService watchdog = Executors.newSingleThreadScheduledExecutor(r -> {
-		Thread t = new Thread(r, "spawnermarket-watchdog");
+		Thread t = new Thread(r, "spawnersearch-watchdog");
 		t.setDaemon(true);
 		return t;
 	});
@@ -91,12 +91,12 @@ public final class MarketRelay {
 				}
 				if (confirm) watchdog.schedule(() -> {
 					if (unconfirmed.remove(id) != null && out == o) {
-						SpawnerMarketClient.LOGGER.info("Relay: keine Bestätigung vom Broker, verbinde neu");
+						SpawnerSearchClient.LOGGER.info("Relay: keine Bestätigung vom Broker, verbinde neu");
 						closeSocket();
 					}
 				}, CONFIRM_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
 			} catch (IOException e) {
-				SpawnerMarketClient.LOGGER.debug("Relay: Senden fehlgeschlagen", e);
+				SpawnerSearchClient.LOGGER.debug("Relay: Senden fehlgeschlagen", e);
 				closeSocket();
 			}
 		});
@@ -160,7 +160,7 @@ public final class MarketRelay {
 						else if ((h[0] >> 4) == 4 && body.length >= 2) unconfirmed.remove(((body[0] & 0xFF) << 8) | (body[1] & 0xFF)); // PUBACK
 					}
 				} catch (Exception e) {
-					if (on) SpawnerMarketClient.LOGGER.debug("Relay getrennt, verbinde neu", e);
+					if (on) SpawnerSearchClient.LOGGER.debug("Relay getrennt, verbinde neu", e);
 				} finally {
 					connected = false;
 					socket = null;
@@ -174,7 +174,7 @@ public final class MarketRelay {
 				}
 				backoff = Math.min(60_000, backoff * 2);
 			}
-		}, "spawnermarket-relay");
+		}, "spawnersearch-relay");
 		th.setDaemon(true);
 		th.start();
 	}

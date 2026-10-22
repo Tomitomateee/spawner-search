@@ -1,6 +1,6 @@
-package dev.spawnermarket.gui;
+package dev.spawnersearch.gui;
 
-import dev.spawnermarket.MarketConfig;
+import dev.spawnersearch.MarketConfig;
 
 /** A color preset for the GUI, selectable in the settings drawer (same presets as Liquid Player). */
 public record Theme(String name,

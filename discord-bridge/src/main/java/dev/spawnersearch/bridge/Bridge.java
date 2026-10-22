@@ -1,4 +1,4 @@
-package dev.spawnermarket.bridge;
+package dev.spawnersearch.bridge;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -21,11 +21,11 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Mirrors the Spawner Market into Discord: reads offers, deals and vouches from the mod's relay
+ * Mirrors the Spawner Search into Discord: reads offers, deals and vouches from the mod's relay
  * and keeps four channels up to date through webhooks. Verkauf, Ankauf and Preise are one live
  * message each that gets edited; every new vouch is posted as its own message.
  *
- * <p>Run it anywhere with Java 21+ (your PC, a server): {@code java -jar spawner-market-discord.jar}.
+ * <p>Run it anywhere with Java 21+ (your PC, a server): {@code java -jar spawner-search-discord.jar}.
  * {@code --dry-run} prints what would be posted instead of sending it.
  */
 public final class Bridge implements Relay.Handler {
@@ -150,7 +150,7 @@ public final class Bridge implements Relay.Handler {
 	}
 
 	private void run() throws InterruptedException {
-		log("Spawner Market → Discord" + (config.server.isEmpty() ? " (alle Server)" : " für " + config.server)
+		log("Spawner Search → Discord" + (config.server.isEmpty() ? " (alle Server)" : " für " + config.server)
 				+ (dryRun ? " – Probelauf, es wird nichts gesendet" : ""));
 		relay.start();
 		while (true) {
@@ -316,7 +316,7 @@ public final class Bridge implements Relay.Handler {
 		boolean due = now() - sentAt.getOrDefault(channel, 0L) >= config.refreshMinutes * 60_000L;
 		if (signature.equals(sent.get(channel)) && !due) return;
 		message.addProperty("content", message.get("content").getAsString()
-				+ "\n-# Live aus der Spawner-Market-Mod · Stand <t:" + now() / 1000 + ":R>");
+				+ "\n-# Live aus der Spawner-Search-Mod · Stand <t:" + now() / 1000 + ":R>");
 		if (dryRun) {
 			System.out.println("\n===== #" + channel + " =====\n" + preview(message));
 			sent.put(channel, signature);
@@ -514,7 +514,7 @@ public final class Bridge implements Relay.Handler {
 
 	private static JsonObject baseMessage(String content) {
 		JsonObject msg = new JsonObject();
-		msg.addProperty("username", "Spawner-Markt");
+		msg.addProperty("username", "Spawner-Search");
 		msg.addProperty("content", content);
 		// Player names and texts come from anyone: never ping.
 		JsonObject mentions = new JsonObject();

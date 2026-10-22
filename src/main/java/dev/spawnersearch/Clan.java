@@ -1,4 +1,4 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

@@ -1,4 +1,4 @@
-package dev.spawnermarket;
+package dev.spawnersearch;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -27,9 +27,12 @@ import java.util.UUID;
  */
 public class MarketConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
-	/** Outside the game folder on purpose: {@code <user>/.spawner-market/accounts/<uuid>.json}. */
-	private static final Path ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-market", "accounts");
+	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-search.json");
+	/** Outside the game folder on purpose: {@code <user>/.spawner-search/accounts/<uuid>.json}. */
+	private static final Path ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-search", "accounts");
+	/** Where the mod kept its files while it was called Spawner Market (before 1.5.0). */
+	private static final Path OLD_PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
+	private static final Path OLD_ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-market", "accounts");
 	private static final int SETTINGS_VERSION = 1;
 
 	/** Index into {@code Theme.ALL}. */
@@ -101,7 +104,19 @@ public class MarketConfig {
 		Map<String, JsonObject> published = new LinkedHashMap<>();
 	}
 
+	/** Copies a file from the old Spawner Market names once, if the new one doesn't exist yet (the old one stays). */
+	private static void takeOver(Path from, Path to) {
+		try {
+			if (Files.exists(to) || !Files.exists(from)) return;
+			Files.createDirectories(to.getParent());
+			Files.copy(from, to);
+		} catch (IOException e) {
+			SpawnerSearchClient.LOGGER.warn("Konnte alte Spawner-Market-Daten nicht übernehmen", e);
+		}
+	}
+
 	public static MarketConfig load() {
+		takeOver(OLD_PATH, PATH);
 		MarketConfig cfg = null;
 		JsonObject old = null;
 		try {
@@ -112,7 +127,7 @@ public class MarketConfig {
 				if (el.isJsonObject()) old = el.getAsJsonObject();
 			}
 		} catch (Exception e) {
-			SpawnerMarketClient.LOGGER.warn("Konnte Config nicht lesen", e);
+			SpawnerSearchClient.LOGGER.warn("Konnte Config nicht lesen", e);
 		}
 		if (cfg == null) cfg = new MarketConfig();
 		if (cfg.notifyTypes == null) cfg.notifyTypes = new ArrayList<>();
@@ -136,12 +151,13 @@ public class MarketConfig {
 	 */
 	private void loadAccount(UUID uuid, JsonObject old) {
 		account = uuid;
+		takeOver(OLD_ACCOUNTS.resolve(uuid + ".json"), accountFile());
 		Account a = null;
 		boolean migrate = false;
 		try {
 			if (Files.exists(accountFile())) a = GSON.fromJson(Files.readString(accountFile(), StandardCharsets.UTF_8), Account.class);
 		} catch (Exception e) {
-			SpawnerMarketClient.LOGGER.warn("Konnte Account-Daten nicht lesen", e);
+			SpawnerSearchClient.LOGGER.warn("Konnte Account-Daten nicht lesen", e);
 		}
 		if (a == null) {
 			a = new Account();
@@ -160,7 +176,7 @@ public class MarketConfig {
 					if (old.has("closedTrades")) a.closedTrades = GSON.fromJson(old.get("closedTrades"), new TypeToken<List<String>>() {}.getType());
 					if (old.has("alarms")) a.alarms = GSON.fromJson(old.get("alarms"), new TypeToken<Map<String, Alarm>>() {}.getType());
 				} catch (Exception e) {
-					SpawnerMarketClient.LOGGER.warn("Konnte alte Daten nicht übernehmen", e);
+					SpawnerSearchClient.LOGGER.warn("Konnte alte Daten nicht übernehmen", e);
 				}
 			}
 		}
@@ -179,7 +195,7 @@ public class MarketConfig {
 			Files.createDirectories(PATH.getParent());
 			Files.writeString(PATH, GSON.toJson(this), StandardCharsets.UTF_8);
 		} catch (IOException e) {
-			SpawnerMarketClient.LOGGER.warn("Konnte Config nicht speichern", e);
+			SpawnerSearchClient.LOGGER.warn("Konnte Config nicht speichern", e);
 		}
 		if (account == null) return;
 		try {
@@ -193,7 +209,7 @@ public class MarketConfig {
 			Files.createDirectories(ACCOUNTS);
 			Files.writeString(accountFile(), GSON.toJson(a), StandardCharsets.UTF_8);
 		} catch (IOException e) {
-			SpawnerMarketClient.LOGGER.warn("Konnte Account-Daten nicht speichern", e);
+			SpawnerSearchClient.LOGGER.warn("Konnte Account-Daten nicht speichern", e);
 		}
 	}
 

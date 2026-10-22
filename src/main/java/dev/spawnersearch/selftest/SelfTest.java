@@ -1,19 +1,19 @@
-package dev.spawnermarket.selftest;
+package dev.spawnersearch.selftest;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import dev.spawnermarket.Market;
-import dev.spawnermarket.Market.Deal;
-import dev.spawnermarket.Market.Notice;
-import dev.spawnermarket.Market.Offer;
-import dev.spawnermarket.MarketConfig;
-import dev.spawnermarket.MarketConfig.Msg;
-import dev.spawnermarket.MarketConfig.Trade;
-import dev.spawnermarket.Notifications;
-import dev.spawnermarket.SpawnerMarketClient;
-import dev.spawnermarket.gui.Banner;
-import dev.spawnermarket.gui.MarketScreen;
+import dev.spawnersearch.Market;
+import dev.spawnersearch.Market.Deal;
+import dev.spawnersearch.Market.Notice;
+import dev.spawnersearch.Market.Offer;
+import dev.spawnersearch.MarketConfig;
+import dev.spawnersearch.MarketConfig.Msg;
+import dev.spawnersearch.MarketConfig.Trade;
+import dev.spawnersearch.Notifications;
+import dev.spawnersearch.SpawnerSearchClient;
+import dev.spawnersearch.gui.Banner;
+import dev.spawnersearch.gui.MarketScreen;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
@@ -33,7 +33,7 @@ import java.util.UUID;
 
 /**
  * Self-test in the real game – never active unless the client is started with
- * {@code -Dspawnermarket.selftest=full}:
+ * {@code -Dspawnersearch.selftest=full}:
  *
  * <pre>
  * ./gradlew prodClient -Pselftest -Pworld="New World"
@@ -45,11 +45,12 @@ import java.util.UUID;
  * survives saving and loading, and the one-time settings update. Then photographs the banners
  * (center, right, left, over the inventory, over the market menu), clicks through the settings
  * and shows the separate Verkauf and Ankauf lists.
- * Screenshots land in {@code screenshots/}, the result in {@code spawnermarket-selftest-full.txt}.
- * Delete {@code config/spawner-market.json} before a run: trades from the last run would stay open.
+ * Screenshots land in {@code screenshots/}, the result in {@code spawnersearch-selftest-full.txt}.
+ * Delete {@code config/spawner-search.json} and the test account in {@code ~/.spawner-search/accounts}
+ * (e63e7f76-…, the offline UUID of "Selbsttest") before a run: trades from the last run would stay open.
  */
 public final class SelfTest {
-	public static final String MODE = System.getProperty("spawnermarket.selftest", "");
+	public static final String MODE = System.getProperty("spawnersearch.selftest", "");
 
 	private static final int PAUSE = 10;
 	private static final int PW = 230, H = 250, GAP = 10, SIDE_MAX = 170;
@@ -83,7 +84,7 @@ public final class SelfTest {
 			Notifications.handle(m, n);
 		});
 		ClientTickEvents.END_CLIENT_TICK.register(SelfTest::tick);
-		SpawnerMarketClient.LOGGER.info("[SELFTEST] Modus {} - warte auf die Welt", MODE);
+		SpawnerSearchClient.LOGGER.info("[SELFTEST] Modus {} - warte auf die Welt", MODE);
 	}
 
 	private static void tick(Minecraft mc) {
@@ -111,7 +112,7 @@ public final class SelfTest {
 		try {
 			done = SCRIPT.get(step).run(mc);
 		} catch (RuntimeException e) {
-			SpawnerMarketClient.LOGGER.error("[SELFTEST] Schritt {} abgestürzt", step, e);
+			SpawnerSearchClient.LOGGER.error("[SELFTEST] Schritt {} abgestürzt", step, e);
 			FAILURES.add("Schritt " + step + " warf " + e);
 			done = true;
 		}
@@ -435,7 +436,7 @@ public final class SelfTest {
 	 * the player chose. Puts the real config back afterwards.
 	 */
 	private static void checkMigration() {
-		Path path = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
+		Path path = FabricLoader.getInstance().getConfigDir().resolve("spawner-search.json");
 		try {
 			market.config().save();
 			JsonObject cfg = JsonParser.parseString(Files.readString(path, StandardCharsets.UTF_8)).getAsJsonObject();
@@ -486,24 +487,24 @@ public final class SelfTest {
 	}
 
 	private static boolean shot(Minecraft mc, String name) {
-		Screenshot.grab(mc.gameDirectory, "spawnermarket-" + name + ".png", mc.getMainRenderTarget(), 1, message -> { });
+		Screenshot.grab(mc.gameDirectory, "spawnersearch-" + name + ".png", mc.getMainRenderTarget(), 1, message -> { });
 		NOTES.add("Screenshot " + name);
 		return true;
 	}
 
 	private static boolean finish(Minecraft mc) {
 		StringBuilder out = new StringBuilder();
-		out.append("Spawner-Market-Selbsttest (").append(MODE).append(")\n");
+		out.append("Spawner-Search-Selbsttest (").append(MODE).append(")\n");
 		out.append(FAILURES.isEmpty() ? "ERGEBNIS: BESTANDEN\n" : "ERGEBNIS: FEHLGESCHLAGEN (" + FAILURES.size() + ")\n");
 		FAILURES.forEach(f -> out.append("  ").append(f).append('\n'));
 		out.append("\nNotizen:\n");
 		NOTES.forEach(note -> out.append("  ").append(note).append('\n'));
 		try {
-			Files.writeString(mc.gameDirectory.toPath().resolve("spawnermarket-selftest-" + MODE + ".txt"), out.toString(), StandardCharsets.UTF_8);
+			Files.writeString(mc.gameDirectory.toPath().resolve("spawnersearch-selftest-" + MODE + ".txt"), out.toString(), StandardCharsets.UTF_8);
 		} catch (IOException e) {
-			SpawnerMarketClient.LOGGER.error("[SELFTEST] Ergebnis konnte nicht geschrieben werden", e);
+			SpawnerSearchClient.LOGGER.error("[SELFTEST] Ergebnis konnte nicht geschrieben werden", e);
 		}
-		SpawnerMarketClient.LOGGER.info("[SELFTEST] fertig:\n{}", out);
+		SpawnerSearchClient.LOGGER.info("[SELFTEST] fertig:\n{}", out);
 		mc.stop();
 		return true;
 	}
