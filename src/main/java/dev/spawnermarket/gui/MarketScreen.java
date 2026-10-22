@@ -1625,7 +1625,17 @@ public class MarketScreen extends Screen {
 
 	/** {@code text} starts with the player's name: draws their clan tag before it, cut to {@code maxW}. */
 	private void drawName(GuiGraphics g, UUID uuid, String text, int x, int y, int maxW, int color) {
-		drawLine(g, nameComponent(uuid, text, color), x, y, maxW, color);
+		MutableComponent tag = uuid == null ? null : Clan.component(market.clanTag(uuid), 0xFFFFFFFF);
+		if (tag != null && font.width(tag) + 20 < maxW) {
+			// The tag on a small dark chip: its colors (white, light green …) stay readable on the
+			// light glass theme as well.
+			int tw = font.width(tag);
+			Glass.roundRect(g, x - 1, y - 1, tw + 3, 10, 2.5f, 0xC0202028);
+			g.drawString(font, tag, x + 1, y, 0xFFFFFFFF, false);
+			x += tw + 5;
+			maxW -= tw + 5;
+		}
+		drawLine(g, Component.literal(text).withColor(color), x, y, maxW, color);
 	}
 
 	/** One line of styled text, cut with "…" when it's wider than {@code maxW}. */

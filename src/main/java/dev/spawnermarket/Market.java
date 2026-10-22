@@ -793,6 +793,9 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("nm", myName());
 		o.addProperty("sv", server());
 		o.addProperty("ts", System.currentTimeMillis());
+		// Which mod version I run: helps telling apart bugs from players with an old jar.
+		o.addProperty("mv", net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer(SpawnerMarketClient.MOD_ID)
+				.map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("?"));
 		// "cl": my tag; an empty list = I'm in no clan; missing = not asked yet since the game
 		// started – then the others keep showing the tag they know.
 		List<Clan.Seg> mine = myClanTag();
@@ -910,6 +913,7 @@ public final class Market implements MarketRelay.Handler {
 		List<Clan.Seg> tag = Clan.fromJson(o.get("cl"));
 		if (tag == null) clans.remove(u);
 		else clans.put(u, tag);
+		SpawnerMarketClient.LOGGER.info("Clan von {}: {}", name(u), tag == null ? "kein Clan" : Clan.text(tag));
 	}
 
 	/** Quitting: mark me offline right away instead of waiting for the broker. */
