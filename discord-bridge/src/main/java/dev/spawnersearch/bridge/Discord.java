@@ -35,11 +35,17 @@ final class Discord {
 		return r.statusCode() / 100 == 2 ? 0 : -1;
 	}
 
+	/** Deletes a message the webhook posted; true if it's gone (also if it was already). */
+	static boolean delete(String webhook, String id) {
+		HttpResponse<String> r = send(HttpRequest.newBuilder(URI.create(webhook + "/messages/" + id)), "DELETE", null);
+		return r != null && (r.statusCode() / 100 == 2 || r.statusCode() == 404);
+	}
+
 	private static HttpResponse<String> send(HttpRequest.Builder b, String method, JsonObject message) {
 		HttpRequest req = b.timeout(Duration.ofSeconds(20))
 				.header("Content-Type", "application/json")
 				.header("User-Agent", "SpawnerSearchBridge/1.0")
-				.method(method, HttpRequest.BodyPublishers.ofString(message.toString()))
+				.method(method, message == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(message.toString()))
 				.build();
 		for (int attempt = 0; attempt < 4; attempt++) {
 			try {

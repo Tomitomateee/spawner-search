@@ -46,9 +46,12 @@ public final class Bridge implements Relay.Handler {
 		/** Vouches already posted (topic keys). */
 		Set<String> vouches = new LinkedHashSet<>();
 		boolean vouchesInitialized;
+		/** Sender name the live messages were posted with; editing a message can't change it. */
+		String author;
 	}
 
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+	private static final String AUTHOR = "Spawner-Search";
 	/**
 	 * All files live next to the jar, so it works no matter where it's started from (autostart,
 	 * a shortcut, javaw without a console).
@@ -152,6 +155,7 @@ public final class Bridge implements Relay.Handler {
 	private void run() throws InterruptedException {
 		log("Spawner Search → Discord" + (config.server.isEmpty() ? " (alle Server)" : " für " + config.server)
 				+ (dryRun ? " – Probelauf, es wird nichts gesendet" : ""));
+		renewAfterRename();
 		relay.start();
 		while (true) {
 			Thread.sleep(5000);
@@ -306,6 +310,21 @@ public final class Bridge implements Relay.Handler {
 		// #vouches: a live overview on top, below it every vouch as its own message.
 		postBoard("vouches", vouchBoard(deals));
 		postVouches(deals);
+	}
+
+	/**
+	 * The live messages still show the sender name they were posted with (Discord keeps it on
+	 * edits). After a rename they're deleted, so the next round posts them again under the new name.
+	 */
+	private void renewAfterRename() {
+		if (dryRun || AUTHOR.equals(state.author)) return;
+		for (Map.Entry<String, String> e : state.messages.entrySet()) {
+			String url = config.webhooks.get(e.getKey().substring(0, e.getKey().indexOf('|')));
+			if (url != null && Discord.delete(url, e.getValue())) log("#" + e.getKey().substring(0, e.getKey().indexOf('|')) + ": alte Live-Nachricht gelöscht");
+		}
+		state.messages.clear();
+		state.author = AUTHOR;
+		saveState();
 	}
 
 	/** Edits the channel's live message (posts it the first time, or again if it was deleted). */
@@ -514,7 +533,7 @@ public final class Bridge implements Relay.Handler {
 
 	private static JsonObject baseMessage(String content) {
 		JsonObject msg = new JsonObject();
-		msg.addProperty("username", "Spawner-Search");
+		msg.addProperty("username", AUTHOR);
 		msg.addProperty("content", content);
 		// Player names and texts come from anyone: never ping.
 		JsonObject mentions = new JsonObject();

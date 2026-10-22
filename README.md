@@ -7,13 +7,13 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-search-1.5.0.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-search-1.5.1.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
-**Von Spawner Market (bis 1.4.9) umsteigen:** die alte `spawner-market-….jar` aus dem `mods`-Ordner
-löschen – sonst laufen beide Mods gleichzeitig. Einstellungen, Trades, Clan und Preiswecker werden beim
-ersten Start einmalig übernommen. Ab 1.5.0 nutzt die Mod einen eigenen Relay-Kanal: Spieler mit der
-alten Spawner-Market-Version sieht man nicht mehr, alle sollten auf Spawner Search wechseln.
+**Von einer Version bis 1.4.9 umsteigen:** die alte Mod-jar aus dem `mods`-Ordner löschen – sonst
+laufen beide gleichzeitig. Einstellungen, Trades, Clan und Preiswecker werden beim ersten Start
+übernommen und unter den neuen Namen verschoben. Ab 1.5.0 nutzt die Mod einen eigenen Relay-Kanal:
+Spieler mit einer Version bis 1.4.9 sieht man nicht mehr, alle sollten wechseln.
 
 ## Willkommen & Clan (hugoSMP)
 

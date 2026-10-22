@@ -30,7 +30,7 @@ public class MarketConfig {
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-search.json");
 	/** Outside the game folder on purpose: {@code <user>/.spawner-search/accounts/<uuid>.json}. */
 	private static final Path ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-search", "accounts");
-	/** Where the mod kept its files while it was called Spawner Market (before 1.5.0). */
+	/** Where versions up to 1.4.9 kept their files, under the mod's old name. */
 	private static final Path OLD_PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
 	private static final Path OLD_ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-market", "accounts");
 	private static final int SETTINGS_VERSION = 1;
@@ -104,14 +104,28 @@ public class MarketConfig {
 		Map<String, JsonObject> published = new LinkedHashMap<>();
 	}
 
-	/** Copies a file from the old Spawner Market names once, if the new one doesn't exist yet (the old one stays). */
+	/**
+	 * Moves a file from the old name to the new one, so nothing under the old name stays behind.
+	 * If the new one already exists (1.5.0 only copied), the old one is a leftover and goes.
+	 */
 	private static void takeOver(Path from, Path to) {
 		try {
-			if (Files.exists(to) || !Files.exists(from)) return;
-			Files.createDirectories(to.getParent());
-			Files.copy(from, to);
+			if (!Files.exists(from)) return;
+			if (Files.exists(to)) {
+				Files.delete(from);
+			} else {
+				Files.createDirectories(to.getParent());
+				Files.move(from, to);
+			}
+			// Empty old folders go too (for the account files: accounts and its parent).
+			for (Path dir = from.getParent(); dir != null && dir.getFileName().toString().matches("accounts|\\.spawner-market"); dir = dir.getParent()) {
+				try (var left = Files.list(dir)) {
+					if (left.findAny().isPresent()) break;
+				}
+				Files.delete(dir);
+			}
 		} catch (IOException e) {
-			SpawnerSearchClient.LOGGER.warn("Konnte alte Spawner-Market-Daten nicht übernehmen", e);
+			SpawnerSearchClient.LOGGER.warn("Konnte alte Daten (bis 1.4.9) nicht übernehmen", e);
 		}
 	}
 
