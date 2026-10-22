@@ -7,12 +7,12 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.4.0.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.4.1.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Willkommen & Clan (hugoSMP)
 
-Beim ersten Öffnen mit **H** auf hugoSMP kommt ein Willkommensfenster: „Hallo [Name], mach
+Jedes Mal, wenn du hugoSMP joinst, kommt beim ersten **H** ein Willkommensfenster: „Hallo [Name], mach
 /clan info, um fortzufahren“. Der Knopf **/clan info ausführen** schickt den Befehl (oder du
 tippst ihn selbst in den Chat). Die Mod liest aus der Antwort dein **Clan-Kürzel** mit seinen
 Farben, z. B. **[FWM5]**, und zeigt es ab dann überall in der Mod **vor deinem Namen** – auch bei
@@ -103,11 +103,14 @@ Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 
 ## Einstellungen
 
-`config/spawner-market.json`:
+`config/spawner-market.json` (nur Einstellungen – das darf in ein Modpack):
 - `tpaCommand` / `tpaAcceptCommand`: falls dein Server andere Befehle hat (Standard `tpa` / `tpaccept`).
-- `published`: deine Angebote, Deals und Vouches; sie werden nach jedem Verbinden neu gesendet.
-- `trades`: deine offenen Trade-Chats.
-- `alarms`: deine Preiswecker.
+
+**Pro Minecraft-Account** in deinem Benutzerordner, nicht im Spiel- oder Modpack-Ordner:
+`C:\Users\<du>\.spawner-market\accounts\<UUID>.json` – Clan-Kürzel, offene Trade-Chats,
+Preiswecker und was du veröffentlicht hast (wird nach jedem Verbinden neu gesendet). So nimmt ein
+weitergegebenes Modpack nie deine Trades oder deinen Clan mit, und mehrere Accounts auf einem PC
+haben jeweils ihre eigenen Daten. Ältere Daten aus der Config werden einmalig dorthin verschoben.
 
 ## Wichtig zu wissen
 
