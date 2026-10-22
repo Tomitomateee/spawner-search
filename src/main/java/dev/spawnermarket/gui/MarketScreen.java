@@ -1102,7 +1102,7 @@ public class MarketScreen extends Screen {
 		place(vouchBox, vx + 10, iy, sw - 20);
 		vouchBox.setHint(Component.literal("Wie lief der Trade?").withColor(0xFF8E8AA0));
 		hit(vx + 10, iy, sw - 20, 18, () -> setFocused(vouchBox));
-		// + closes the deal, ○ = trade didn't happen (stays open), − = no deal, chat closes.
+		// + closes the deal, ○ = trade didn't happen (offer stays), − = no deal; the chat closes on each.
 		int bw = (sw - 24 - 8) / 3, by = py + H - 28;
 		int[] ratings = { 1, 0, -1 };
 		String[] labels = { "+ Deal", "○ Neutral", "− Neg." };

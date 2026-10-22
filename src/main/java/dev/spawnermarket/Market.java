@@ -542,8 +542,8 @@ public final class Market implements MarketRelay.Handler {
 	/**
 	 * Vouches the other player of an open trade (only possible in a trade; my newest vouch for a
 	 * player replaces the older one, so they don't stack). Positive: the deal went through, it is
-	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, chat and offer
-	 * stay. Negative: no deal, the chat is deleted.
+	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, the chat is
+	 * deleted but the offer stays. Negative: no deal, the chat is deleted.
 	 */
 	public String vouch(UUID target, String targetName, int rating, String text, Trade trade) {
 		if (target.equals(me())) return "Du kannst dich nicht selbst vouchen";
@@ -563,16 +563,12 @@ public final class Market implements MarketRelay.Handler {
 		v.addProperty("tx", text);
 		v.addProperty("ts", System.currentTimeMillis());
 		publishMine("v/" + target + "/" + me(), v);
-		if (rating == 0) {
-			addMessage(trade, new Msg("", "", "Neutraler Vouch: kein Deal, der Trade bleibt offen.", System.currentTimeMillis()));
-			config.save();
-			say("Neutraler Vouch für " + targetName + " – Trade bleibt offen");
-			return null;
-		}
 		if (rating > 0) publishDeal(trade);
 		sendTrade(trade, "close", "", rating > 0);
 		forgetTrade(trade);
-		say(rating > 0 ? "Deal mit " + targetName + " abgeschlossen" : "Trade mit " + targetName + " beendet (kein Deal)");
+		say(rating > 0 ? "Deal mit " + targetName + " abgeschlossen"
+				: rating == 0 ? "Trade mit " + targetName + " kam nicht zustande – Angebot bleibt"
+				: "Trade mit " + targetName + " beendet (kein Deal)");
 		return null;
 	}
 
