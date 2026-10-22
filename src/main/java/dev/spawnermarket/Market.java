@@ -155,7 +155,29 @@ public final class Market implements MarketRelay.Handler {
 		if (uuid.equals(me())) return myName();
 		PlayerInfo info = tabInfo(uuid);
 		if (info != null) return info.getProfile().name();
-		return names.getOrDefault(uuid, "?");
+		String known = names.get(uuid);
+		if (known != null) return known;
+		// Not seen online yet: any vouch, offer, deal or trade chat with them names them too.
+		for (Vouch v : vouches.values()) {
+			if (v.target.equals(uuid) && !v.targetName.isEmpty()) return remember(uuid, v.targetName);
+			if (v.from.equals(uuid) && !v.fromName.isEmpty()) return remember(uuid, v.fromName);
+		}
+		for (Offer o : offers.values()) if (o.owner.equals(uuid) && !o.name.isEmpty()) return remember(uuid, o.name);
+		for (Deal d : dealRecords.values()) {
+			if (d.seller.equals(uuid)) return remember(uuid, d.sellerName);
+			if (d.buyer.equals(uuid)) return remember(uuid, d.buyerName);
+		}
+		String id = uuid.toString();
+		for (Trade t : config.trades.values()) {
+			if (id.equals(t.owner) && t.ownerName != null && !t.ownerName.isEmpty()) return remember(uuid, t.ownerName);
+			if (id.equals(t.partner) && t.partnerName != null && !t.partnerName.isEmpty()) return remember(uuid, t.partnerName);
+		}
+		return "?";
+	}
+
+	private String remember(UUID uuid, String name) {
+		names.put(uuid, name);
+		return name;
 	}
 
 	/** UUID for a name: tab list first, then everyone seen on the relay. */
