@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.2.3.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.2.4.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -62,8 +62,8 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 
 ### Zahnrad
 Farbthema, Black Mode, Benachrichtigungen an/aus, Deckkraft und der **Preiswecker**: pro
-Spawner einen Preis eintragen, dazu **Kaufen ≤** (Meldung, wenn jemand zu diesem Preis oder
-billiger verkauft) oder **Verkaufen ≥** (wenn jemand so viel oder mehr zahlt). Gilt für Angebote
+Spawner einen Preis eintragen, dazu **Kaufen bis** (Meldung, wenn jemand zu diesem Preis oder
+billiger verkauft) oder **Verkaufen ab** (wenn jemand so viel oder mehr zahlt). Gilt für Angebote
 auf deinem aktuellen Server und kommt als Banner, unabhängig von den Angebots-Filtern.
 
 ### Benachrichtigungen

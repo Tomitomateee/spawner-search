@@ -88,6 +88,9 @@ public class MarketScreen extends Screen {
 	private long lastFrame;
 	// Notification settings page
 	private int notifyTab, testBanner;
+	/** Scrolling of the settings pages, and the area hits are limited to while drawing one. */
+	private int settingsScroll, settingsMax;
+	private int clipTop = Integer.MIN_VALUE, clipBottom = Integer.MAX_VALUE;
 
 	// Trade chats
 	private String openTrade;
@@ -569,53 +572,64 @@ public class MarketScreen extends Screen {
 
 	private void openNotify() {
 		mode = Mode.NOTIFY;
+		settingsScroll = 0;
 		drawerOpen = false;
 		setFocused(null);
 	}
 
 	private void renderNotify(GuiGraphics g, int mx, int my) {
 		MarketConfig c = market.config();
-		segmented(g, mx, my, px + 12, py + 28, PW - 24, new String[] { "Angebote", "Trades", "Anzeige", "Wecker" }, notifyTab, i -> notifyTab = i);
+		segmented(g, mx, my, px + 12, py + 28, PW - 24, new String[] { "Angebote", "Trades", "Anzeige", "Wecker" }, notifyTab, i -> {
+			notifyTab = i;
+			settingsScroll = 0;
+		});
+		int top = py + 50, bottom = py + H - 34;
+		int y = beginScroll(g, top, bottom);
 		switch (notifyTab) {
 			case 1 -> {
-				int y = py + 52;
 				y = settingRow(g, y, "Neue Trades", c.notifyTrades, () -> c.notifyTrades = !c.notifyTrades,
-						"Jemand klickt bei deinem Angebot auf „Handeln“");
+						"Jemand hat bei einem deiner Angebote auf „Handeln“ geklickt und einen Trade-Chat mit dir gestartet.");
 				y = settingRow(g, y, "Trade-Nachrichten", c.notifyMessages, () -> c.notifyMessages = !c.notifyMessages,
-						"Dein Handelspartner schreibt dir im Trade-Chat");
+						"Dein Handelspartner hat dir im Trade-Chat geschrieben. Das Banner zeigt den Anfang der Nachricht.");
 				y = settingRow(g, y, "Deal / Trade beendet", c.notifyTradeEnd, () -> c.notifyTradeEnd = !c.notifyTradeEnd,
-						"Dein Partner hat gevoucht: Deal bestätigt oder Trade zu");
+						"Dein Handelspartner hat gevoucht. Bei einem positiven Vouch ist der Deal bestätigt, bei einem neutralen "
+								+ "oder negativen Vouch wurde der Trade ohne Deal geschlossen.");
 				y = settingRow(g, y, "TPA-Anfragen", c.notifyTpa, () -> c.notifyTpa = !c.notifyTpa,
-						"Jemand will sich per /tpa zu dir teleportieren");
-				settingRow(g, y, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals,
-						"Deals anderer Spieler – nutzt Server- und Spawner-Filter");
+						"Ein anderer Spieler mit der Mod hat dir über den TPA-Knopf eine Teleport-Anfrage geschickt. "
+								+ "Annehmen kannst du sie links bei den Trade-Chats.");
+				y = settingRow(g, y, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals,
+						"Meldet auch Deals zwischen anderen Spielern, sobald beide Seiten sie bestätigt haben. Dafür gelten "
+								+ "„Nur mein Server“ und die Spawner-Auswahl aus dem Tab „Angebote“.");
 			}
 			case 2 -> {
-				g.drawString(font, "Position oben", px + 14, py + 54, TEXT, false);
-				note(g, py + 64, "Wo die Banner am oberen Bildrand erscheinen");
-				segmented(g, mx, my, px + 12, py + 74, PW - 24, new String[] { "Links", "Mitte", "Rechts" }, c.bannerPos, i -> {
+				g.drawString(font, "Position oben", px + 14, y, TEXT, false);
+				y = note(g, y + 12, "Ob die Banner oben links, oben in der Mitte oder oben rechts im Bild erscheinen.");
+				segmented(g, mx, my, px + 12, y + 2, PW - 24, new String[] { "Links", "Mitte", "Rechts" }, c.bannerPos, i -> {
 					c.bannerPos = i;
 					c.save();
 				});
-				g.drawString(font, "Anzeigedauer", px + 14, py + 101, TEXT, false);
+				y += 30;
+				g.drawString(font, "Anzeigedauer", px + 14, y + 3, TEXT, false);
 				int rx = px + PW - 12;
-				rx -= smallButton(g, mx, my, rx, py + 98, "+", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds + 1)) + 4;
+				rx -= smallButton(g, mx, my, rx, y, "+", ACCENT, clipTop, clipBottom, () -> setBannerSeconds(c.bannerSeconds + 1)) + 4;
 				String secs = c.bannerSeconds + " s";
-				g.drawString(font, secs, rx - font.width(secs), py + 101, TEXT_SOFT, false);
+				g.drawString(font, secs, rx - font.width(secs), y + 3, TEXT_SOFT, false);
 				rx -= font.width(secs) + 4;
-				smallButton(g, mx, my, rx, py + 98, "−", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds - 1));
-				note(g, py + 111, "Wie lange ein Banner stehen bleibt (3–15 s)");
-				int y = py + 124;
+				smallButton(g, mx, my, rx, y, "−", ACCENT, clipTop, clipBottom, () -> setBannerSeconds(c.bannerSeconds - 1));
+				y = note(g, y + 17, "Wie viele Sekunden ein Banner sichtbar bleibt, bevor es verschwindet (3 bis 15 Sekunden). "
+						+ "Kommen mehrere gleichzeitig, stehen bis zu drei untereinander.") + 8;
 				y = settingRow(g, y, "Ton", c.bannerSound, () -> c.bannerSound = !c.bannerSound,
-						"Glocke bei Angeboten/Deals, Pling bei Nachrichten");
+						"Spielt zu jedem Banner einen Ton: eine Glocke bei neuen Angeboten, Deals, neuen Trades und dem "
+								+ "Preiswecker, ein Pling bei Nachrichten, beendeten Trades und TPA-Anfragen.");
 				y = settingRow(g, y, "Auch über Menüs", c.bannerInMenus, () -> c.bannerInMenus = !c.bannerInMenus,
-						"Auch im Inventar, in Kisten und im Pause-Menü");
-				note(g, y + 2, "Solange dieses Menü offen ist, kommen keine");
-				note(g, y + 11, "Banner – hier siehst du ja schon alles.");
+						"Zeigt die Banner auch, wenn ein anderes Menü offen ist, zum Beispiel das Inventar, eine Kiste oder "
+								+ "das Pause-Menü. Ist das aus, kommen Banner nur direkt im Spiel.");
+				y = note(g, y, "Solange das Spawnerhandel-Menü offen ist, kommen keine Banner, weil du hier ohnehin alles siehst.");
 			}
-			case 3 -> renderNotifyAlarms(g, mx, my, c);
-			default -> renderNotifyOffers(g, mx, my, c);
+			case 3 -> y = renderNotifyAlarms(g, mx, my, c, y);
+			default -> y = renderNotifyOffers(g, mx, my, c, y);
 		}
+		endScroll(g, top, bottom, y);
 
 		// Bottom: try it out (examples for the open tab), back.
 		int by = py + H - 28, cw = 80;
@@ -648,99 +662,109 @@ public class MarketScreen extends Screen {
 		}
 	}
 
+	private static final String ALARM_INTRO = "Der Preiswecker meldet sich mit einem Banner, sobald auf dem Server, auf dem du "
+			+ "gerade bist, ein Angebot zu deinem Wunschpreis auftaucht. Er kommt immer, auch wenn die Banner für neue "
+			+ "Angebote ausgeschaltet sind.";
+	private static final String ALARM_BUY = "„Kaufen bis“: Du willst einen Spawner kaufen. Du wirst benachrichtigt, wenn "
+			+ "jemand ihn zu deinem Preis oder billiger verkauft.";
+	private static final String ALARM_SELL = "„Verkaufen ab“: Du willst einen Spawner verkaufen. Du wirst benachrichtigt, "
+			+ "wenn jemand ihn zu deinem Preis oder teurer kaufen will.";
+
 	/** The price alarm explained, what is set, and a way to set it. */
-	private void renderNotifyAlarms(GuiGraphics g, int mx, int my, MarketConfig c) {
-		g.drawString(font, "Preiswecker", px + 14, py + 54, TEXT, false);
-		note(g, py + 65, "Meldet sich, sobald auf deinem Server ein Angebot");
-		note(g, py + 74, "deinen Wunschpreis erreicht – auch wenn die");
-		note(g, py + 83, "Angebots-Banner aus sind.");
-		note(g, py + 95, "Kaufen ≤: jemand verkauft so billig oder billiger");
-		note(g, py + 104, "Verkaufen ≥: jemand kauft so teuer oder teurer");
+	private int renderNotifyAlarms(GuiGraphics g, int mx, int my, MarketConfig c, int y) {
+		g.drawString(font, "Preiswecker", px + 14, y, TEXT, false);
+		y = note(g, y + 12, ALARM_INTRO) + 4;
+		y = note(g, y, ALARM_BUY) + 4;
+		y = note(g, y, ALARM_SELL) + 8;
 
 		// What is set right now.
-		int y = py + 118, x = px + 12;
-		List<Spawners.Type> set = new ArrayList<>();
+		g.drawString(font, "Gestellt", px + 14, y, TEXT, false);
+		y += 13;
+		boolean any = false;
 		for (Spawners.Type t : Spawners.ALL) {
 			MarketConfig.Alarm a = c.alarms.get(t.key());
-			if (a != null && a.price > 0) set.add(t);
+			if (a == null || a.price <= 0) continue;
+			any = true;
+			t.draw(g, px + 14, y, 14);
+			String s = t.name() + ": " + (a.buy ? "kaufen bis " : "verkaufen ab ") + Spawners.format(a.price);
+			g.drawString(font, s, px + 32, y + 3, a.buy ? TEAL_BOTTOM : ACCENT_TOP, false);
+			y += 17;
 		}
-		if (set.isEmpty()) {
-			g.drawString(font, "Noch kein Preiswecker gestellt", px + 14, y + 4, TEXT_SOFT, false);
-		} else {
-			for (int i = 0; i < set.size(); i++) {
-				Spawners.Type t = set.get(i);
-				MarketConfig.Alarm a = c.alarms.get(t.key());
-				int cx = x + (i % 2) * 104, cy = y + (i / 2) * 18;
-				t.draw(g, cx, cy, 14);
-				String s = (a.buy ? "≤ " : "≥ ") + Spawners.format(a.price);
-				g.drawString(font, clip(t.name() + " " + s, 84), cx + 17, cy + 3, a.buy ? TEAL_BOTTOM : ACCENT_TOP, false);
-			}
-		}
-		int by = py + H - 52;
-		boolean hs = hover(mx, my, px + 12, by, PW - 24, 18);
-		Glass.pill(g, px + 12, by, PW - 24, 18, TEAL_TOP, TEAL_BOTTOM, hs);
-		centered(g, "Preiswecker einstellen  ›", px + PW / 2, by + 5, WHITE);
-		hit(px + 12, by, PW - 24, 18, this::openAlarms);
+		if (!any) y = note(g, y, "Noch kein Preiswecker gestellt.");
+		y += 6;
+		boolean hs = hover(mx, my, px + 12, y, PW - 24, 18);
+		Glass.pill(g, px + 12, y, PW - 24, 18, TEAL_TOP, TEAL_BOTTOM, hs);
+		centered(g, "Preiswecker einstellen  ›", px + PW / 2, y + 5, WHITE);
+		hit(px + 12, y, PW - 24, 18, this::openAlarms);
+		return y + 24;
 	}
 
-	private void renderNotifyOffers(GuiGraphics g, int mx, int my, MarketConfig c) {
-		settingRow(g, py + 52, "Neue Angebote", c.notifyOffers, () -> c.notifyOffers = !c.notifyOffers,
-				"Banner, sobald jemand ein Angebot erstellt");
-		note(g, py + 83, "Welche Angebote:");
-		int cx = px + 12, fy = py + 93;
-		cx += chip(g, mx, my, cx, fy, "Verkauf", c.notifySell, () -> {
+	private int renderNotifyOffers(GuiGraphics g, int mx, int my, MarketConfig c, int y) {
+		y = settingRow(g, y, "Neue Angebote", c.notifyOffers, () -> c.notifyOffers = !c.notifyOffers,
+				"Zeigt ein Banner, sobald jemand ein neues Angebot erstellt. Darin stehen Spawner, Anzahl, Preis pro Stück, "
+						+ "ob verkauft oder gekauft wird, von wem es ist und wie der Preis zum Durchschnitt der Deals steht.");
+		g.drawString(font, "Welche Angebote", px + 14, y, TEXT, false);
+		y = note(g, y + 12, "„Verkauf“: jemand verkauft Spawner – für dich zum Kaufen. „Ankauf“: jemand will Spawner kaufen – "
+				+ "für dich zum Verkaufen. „Nur mein Server“ zeigt nur Angebote von dem Server, auf dem du gerade bist.") + 3;
+		int cx = px + 12;
+		cx += chip(g, mx, my, cx, y, "Verkauf", c.notifySell, () -> {
 			c.notifySell = !c.notifySell;
 			c.save();
 		}) + 4;
-		chip(g, mx, my, cx, fy, "Ankauf", c.notifyBuy, () -> {
+		chip(g, mx, my, cx, y, "Ankauf", c.notifyBuy, () -> {
 			c.notifyBuy = !c.notifyBuy;
 			c.save();
 		});
 		String scope = c.notifyMyServer ? "Nur mein Server" : "Alle Server";
 		int scw = font.width(scope) + 12;
-		chip(g, mx, my, px + PW - 12 - scw, fy, scope, c.notifyMyServer, () -> {
+		chip(g, mx, my, px + PW - 12 - scw, y, scope, c.notifyMyServer, () -> {
 			c.notifyMyServer = !c.notifyMyServer;
 			c.save();
 		});
-		settingRow(g, py + 113, "Nur gute Preise", c.notifyGoodPrices, () -> c.notifyGoodPrices = !c.notifyGoodPrices,
-				"Verkauf unter / Ankauf über dem Schnitt der Deals");
+		y += 24;
+		y = settingRow(g, y, "Nur gute Preise", c.notifyGoodPrices, () -> c.notifyGoodPrices = !c.notifyGoodPrices,
+				"Nur Angebote, die besser als der Durchschnitt der Deals sind: Verkäufe unter dem Durchschnitt, Ankäufe "
+						+ "darüber. Gibt es für einen Spawner noch keine Deals, wird jedes Angebot gemeldet.");
 
 		// Which spawners: none picked = all. Same cells as in "Angebot erstellen".
-		g.drawString(font, "Spawner", px + 14, py + 143, TEXT, false);
+		g.drawString(font, "Spawner", px + 14, y, TEXT, false);
 		if (c.notifyTypes.isEmpty()) {
-			g.drawString(font, "alle", px + PW - 14 - font.width("alle"), py + 143, TEXT_SOFT, false);
+			g.drawString(font, "alle", px + PW - 14 - font.width("alle"), y, TEXT_SOFT, false);
 		} else {
 			String reset = c.notifyTypes.size() + " gewählt  ✕";
-			boolean hr = hover(mx, my, px + PW - 16 - font.width(reset), py + 141, font.width(reset) + 4, 12);
-			g.drawString(font, reset, px + PW - 14 - font.width(reset), py + 143, hr ? ACCENT : TEXT_SOFT, false);
-			hit(px + PW - 16 - font.width(reset), py + 141, font.width(reset) + 4, 12, () -> {
+			boolean hr = hover(mx, my, px + PW - 16 - font.width(reset), y - 2, font.width(reset) + 4, 12);
+			g.drawString(font, reset, px + PW - 14 - font.width(reset), y, hr ? ACCENT : TEXT_SOFT, false);
+			hit(px + PW - 16 - font.width(reset), y - 2, font.width(reset) + 4, 12, () -> {
 				c.notifyTypes.clear();
 				c.save();
 			});
 		}
-		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, gy = py + 154, ch = 26;
+		y += 12;
+		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, ch = 38;
 		for (int i = 0; i < n; i++) {
 			Spawners.Type type = Spawners.ALL[i];
-			int x = gx + i * cell, cw = cell - 2;
+			int x = gx + i * cell, cw = cell - 2, gy = y;
 			boolean sel = c.notifyTypes.contains(type.key()), hov = hover(mx, my, x, gy, cw, ch);
 			if (sel) Glass.roundRect(g, x, gy, cw, ch, 6, ACCENT_TOP, ACCENT_BOTTOM);
 			else Glass.roundRect(g, x, gy, cw, ch, 6, hov ? 0x80FFFFFF : 0x40FFFFFF, hov ? 0x60FFFFFF : 0x20FFFFFF);
 			Glass.roundOutline(g, x, gy, cw, ch, 6, 0x90FFFFFF);
 			int is = Math.min(22, cw - 4);
 			type.draw(g, x + (cw - is) / 2, gy + 2, is);
+			smallCentered(g, type.name(), x + cw / 2, gy + 28, sel ? WHITE : TEXT_SOFT, 0.7f);
 			hit(x, gy, cw, ch, () -> {
 				if (!c.notifyTypes.remove(type.key())) c.notifyTypes.add(type.key());
 				c.save();
 			});
 		}
-		note(g, gy + ch + 4, "Antippen = nur diese melden · nichts gewählt = alle");
+		y += ch + 4;
+		return note(g, y, "Tippe Spawner an, um nur über diese benachrichtigt zu werden. Ist keiner ausgewählt, kommen Banner "
+				+ "für alle Spawner.");
 	}
 
-	/** On/off row with a short explanation below; returns where the next row goes. */
+	/** On/off row with its explanation below; returns where the next row goes. */
 	private int settingRow(GuiGraphics g, int y, String label, boolean on, Runnable flip, String explain) {
 		setting(g, y, label, on, flip);
-		note(g, y + 16, explain);
-		return y + 30;
+		return note(g, y + 18, explain) + 9;
 	}
 
 	/** On/off row on the settings page; saves right away. */
@@ -751,14 +775,42 @@ public class MarketScreen extends Screen {
 		});
 	}
 
-	/** A line of explanation in small, faint text. */
-	private void note(GuiGraphics g, int y, String text) {
-		float s = 0.8f;
-		g.pose().pushMatrix();
-		g.pose().translate(px + 14, y);
-		g.pose().scale(s, s);
-		g.drawString(font, clip(text, (int) ((PW - 28) / s)), 0, 0, TEXT_FAINT, false);
-		g.pose().popMatrix();
+	/** A full explanation, wrapped over as many lines as it needs; returns the y below it. */
+	private int note(GuiGraphics g, int y, String text) {
+		for (FormattedCharSequence line : font.split(Component.literal(text), PW - 28)) {
+			g.drawString(font, line, px + 14, y, TEXT_SOFT, false);
+			y += 10;
+		}
+		return y;
+	}
+
+	// ---------------------------------------------------------------- scrolling settings pages
+
+	/** Starts a scrolling area; returns the y where its content begins. */
+	private int beginScroll(GuiGraphics g, int top, int bottom) {
+		g.enableScissor(px + 4, top, px + PW - 4, bottom);
+		clipTop = top;
+		clipBottom = bottom;
+		return top + 4 - settingsScroll;
+	}
+
+	/** Ends the area; {@code endY} is where the content ended (for the scroll range and the bar). */
+	private void endScroll(GuiGraphics g, int top, int bottom, int endY) {
+		g.disableScissor();
+		clipTop = Integer.MIN_VALUE;
+		clipBottom = Integer.MAX_VALUE;
+		int content = endY + settingsScroll - top, view = bottom - top;
+		settingsMax = Math.max(0, content - view);
+		settingsScroll = Math.max(0, Math.min(settingsScroll, settingsMax));
+		if (settingsMax <= 0) return;
+		int trackH = view - 4, thumbH = Math.max(12, trackH * view / content);
+		int thumbY = top + 2 + (trackH - thumbH) * settingsScroll / settingsMax;
+		Glass.roundRect(g, px + PW - 6, thumbY, 3, thumbH, 1.5f, Glass.argb(0x80, ACCENT));
+		// More below: say so, the scrollbar alone is easy to miss.
+		if (settingsScroll < settingsMax) {
+			String more = "▼ scrollen für mehr";
+			smallCentered(g, more, px + PW / 2, bottom - 7, ACCENT_TOP, 0.75f);
+		}
 	}
 
 	private void setBannerSeconds(int s) {
@@ -840,6 +892,7 @@ public class MarketScreen extends Screen {
 		drawerOpen = false;
 		drawerAnim = 0;
 		mode = Mode.ALARMS;
+		settingsScroll = 0;
 		for (int i = 0; i < alarmBoxes.length; i++) {
 			MarketConfig.Alarm a = market.config().alarms.get(Spawners.ALL[i].key());
 			alarmBoxes[i].setValue(a == null || a.price <= 0 ? "" : Spawners.format(a.price));
@@ -852,23 +905,32 @@ public class MarketScreen extends Screen {
 		g.drawString(font, "Preiswecker", px + 14, py + 30, TEXT, false);
 		smallButton(g, mx, my, px + PW - 12, py + 27, "Test", ACCENT, 0, height,
 				() -> Notifications.show(market.config(), Notifications.sampleAlarm(), true));
+		int top = py + 44, bottom = py + H - 34;
+		int y = beginScroll(g, top, bottom);
 		String sv = Market.server();
-		note(g, py + 41, "Preis eintragen und Art wählen – gilt für " + (sv.isEmpty() ? "deinen Server" : sv));
+		y = note(g, y, "Trag bei einem Spawner einen Preis pro Stück ein (zum Beispiel 250k oder 1,5m) und wähle, ob du "
+				+ "kaufen oder verkaufen willst. Ein leeres Feld schaltet den Preiswecker für diesen Spawner aus.") + 4;
+		y = note(g, y, "Gilt nur für Angebote auf " + (sv.isEmpty() ? "dem Server, auf dem du gerade bist" : sv)
+				+ ", weil jeder Server seine eigene Währung hat.") + 6;
+		int cw = font.width("Verkaufen ab") + 12;
 		for (int i = 0; i < Spawners.ALL.length; i++) {
 			Spawners.Type t = Spawners.ALL[i];
 			MarketConfig.Alarm a = market.config().alarms.computeIfAbsent(t.key(), k -> new MarketConfig.Alarm());
-			int y = py + 51 + i * 21, x = px + 8, w = PW - 16;
+			int x = px + 8, w = PW - 16;
 			Glass.glass(g, x, y, w, 20, 8, 0x58FFFFFF, 0x38FFFFFF);
 			t.draw(g, x + 3, y + 2, 16);
 			g.drawString(font, t.name(), x + 24, y + 6, TEXT, false);
-			// Kaufen: tell me when someone sells at or below; Verkaufen: when someone buys at or above.
-			String mode = a.buy ? "Kaufen ≤" : "Verkaufen ≥";
-			int cw = font.width("Verkaufen ≥") + 12, cx = x + 88;
-			chip(g, mx, my, cx, y + 3, mode, a.buy, () -> a.buy = !a.buy);
+			// Kaufen bis: someone sells at or below; Verkaufen ab: someone buys at or above.
+			int cx = x + 78;
+			chip(g, mx, my, cx, y + 3, a.buy ? "Kaufen bis" : "Verkaufen ab", a.buy, () -> a.buy = !a.buy);
 			field(g, alarmBoxes[i], cx + cw + 4, y + 1, x + w - 4 - (cx + cw + 4));
+			y += 22;
 		}
-		note(g, py + H - 48, "Kaufen ≤: Meldung, wenn jemand so billig verkauft");
-		note(g, py + H - 40, "Verkaufen ≥: wenn jemand so viel zahlt · leer = aus");
+		y = note(g, y + 4, ALARM_BUY) + 4;
+		y = note(g, y, ALARM_SELL) + 4;
+		y = note(g, y, "Klick auf die Art, um zwischen „Kaufen bis“ und „Verkaufen ab“ zu wechseln. „Test“ oben rechts "
+				+ "zeigt, wie die Meldung aussieht.");
+		endScroll(g, top, bottom, y);
 		formButtons(g, mx, my, "Speichern", this::backToMarket);
 	}
 
@@ -1303,6 +1365,9 @@ public class MarketScreen extends Screen {
 		Glass.shadow(g, x, y, w, 18, 9, 60);
 		Glass.roundRect(g, x, y, w, 18, 9, PILL_TOP, PILL_BOTTOM);
 		Glass.roundOutline(g, x, y, w, 18, 9, b.isFocused() ? ACCENT_TOP : 0xC0FFFFFF);
+		// Inside a scrolling page, a field that is (partly) scrolled out stays hidden: text
+		// fields are drawn after everything else, outside the scissor.
+		if (y < clipTop || y + 18 > clipBottom) return;
 		place(b, x, y, w);
 		hit(x, y, w, 18, () -> setFocused(b));
 	}
@@ -1332,7 +1397,8 @@ public class MarketScreen extends Screen {
 	private int lastClickX;
 
 	private void hit(int x, int y, int w, int h, Runnable action) {
-		hits.add(new Hit(x, y, w, h, action));
+		if (clipTop != Integer.MIN_VALUE) hitClipped(x, y, w, h, clipTop, clipBottom, action);
+		else hits.add(new Hit(x, y, w, h, action));
 	}
 
 	/** A hit area limited to a scrolling list's visible rows. */
@@ -1398,7 +1464,8 @@ public class MarketScreen extends Screen {
 			return true;
 		}
 		if (hover((int) mx, (int) my, px, py, PW, H)) {
-			listScroll -= step;
+			if (mode == Mode.NOTIFY || mode == Mode.ALARMS) settingsScroll -= step * 12;
+			else listScroll -= step;
 			return true;
 		}
 		if (hover((int) mx, (int) my, vx, py, sw, H)) {
