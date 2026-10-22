@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.3.2.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.3.3.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -37,6 +37,9 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ### Links – Trade-Chats
 - Jeder Trade hat seinen eigenen Chat: **Handeln** an einem Angebot öffnet ihn, beim Anbieter
   taucht er automatisch auf. Oben steht, um welches Angebot es geht.
+- Bei **Handeln** wählst du zuerst, **wie viele** du kaufen (bzw. verkaufen) willst – „Alle“, mit
+  − / + oder eingetippt. Nach dem Deal wird das Angebot um diese Menge kleiner: Kaufst du 2 von 10,
+  stehen danach noch 8 zum Verkauf. Kauft jemand alle, verschwindet das Angebot.
 - Die erste Nachricht steht oben, neue kommen darunter.
 - **Ein Trade ist erst abgeschlossen, wenn beide füreinander gevoucht haben.** Wer zuerst vouched,
   sieht „wartet auf …“, der andere „du bist dran“ (oben im Chat, plus Hinweis im Verlauf).

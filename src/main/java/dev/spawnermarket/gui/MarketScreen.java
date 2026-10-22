@@ -67,7 +67,7 @@ public class MarketScreen extends Screen {
 	/** A clickable area recorded while drawing; clicks are matched against the last frame's list. */
 	private record Hit(int x, int y, int w, int h, Runnable action) {}
 
-	private enum Mode { MARKET, CREATE, NOTIFY, ALARMS }
+	private enum Mode { MARKET, CREATE, NOTIFY, ALARMS, AMOUNT }
 
 	private final Market market;
 	private final List<Hit> hits = new ArrayList<>();
@@ -81,6 +81,9 @@ public class MarketScreen extends Screen {
 	private String typeFilter;
 	/** "Meine Gebote": only my own offers, on every server. */
 	private boolean myOnly;
+	/** "Handeln": the offer whose amount is being picked, and the amount. */
+	private Offer amountOffer;
+	private int pickAmount;
 	private int listScroll;
 	private int createType;
 	private boolean createSell = true;
@@ -246,6 +249,7 @@ public class MarketScreen extends Screen {
 			case CREATE -> renderCreate(g, mx, my);
 			case NOTIFY -> renderNotify(g, mx, my);
 			case ALARMS -> renderAlarms(g, mx, my);
+			case AMOUNT -> renderAmount(g, mx, my);
 			default -> renderMarketTabs(g, mx, my);
 		}
 	}
@@ -1133,8 +1137,71 @@ public class MarketScreen extends Screen {
 		g.disableScissor();
 	}
 
+	/** "Handeln": first pick how many (unless there's only one), then the trade chat opens. */
 	private void startTrade(Offer o) {
-		Trade t = market.startTrade(o);
+		Trade open = market.tradeFor(o);
+		if (open != null) {
+			openTrade(open);
+			return;
+		}
+		if (o.amount() <= 1) {
+			Trade t = market.startTrade(o, 1);
+			if (t != null) openTrade(t);
+			return;
+		}
+		amountOffer = o;
+		pickAmount = o.amount();
+		amountBox.setValue(Integer.toString(pickAmount));
+		mode = Mode.AMOUNT;
+		setFocused(amountBox);
+	}
+
+	private void renderAmount(GuiGraphics g, int mx, int my) {
+		Offer o = amountOffer;
+		Spawners.Type t = Spawners.get(o.type());
+		g.drawString(font, o.sell() ? "Wie viele willst du kaufen?" : "Wie viele willst du verkaufen?", px + 14, py + 32, TEXT, false);
+		Glass.glass(g, px + 12, py + 46, PW - 24, ROW_H, 8, 0x58FFFFFF, 0x38FFFFFF);
+		if (t != null) t.draw(g, px + 15, py + 49, 20);
+		g.drawString(font, clip(o.amount() + "× " + (t == null ? o.type() : t.name()) + " · je " + Spawners.format(o.price()), PW - 60),
+				px + 38, py + 50, TEXT, false);
+		g.drawString(font, clip(o.name() + (o.sell() ? " verkauft" : " kauft"), PW - 60), px + 38, py + 61, TEXT_SOFT, false);
+
+		// The typed number wins; − / + and "Alle" adjust it.
+		int typed = parseInt(amountBox.getValue());
+		if (typed > 0 && !amountBox.getValue().isBlank()) pickAmount = Math.min(o.amount(), typed);
+		int y = py + 84;
+		g.drawString(font, "Anzahl (1–" + o.amount() + ")", px + 14, y + 5, TEXT_SOFT, false);
+		int rx = px + PW - 12;
+		rx -= smallButton(g, mx, my, rx, y + 2, "Alle", ACCENT, 0, height, () -> setPick(o.amount())) + 4;
+		rx -= smallButton(g, mx, my, rx, y + 2, "+", ACCENT, 0, height, () -> setPick(pickAmount + 1)) + 4;
+		field(g, amountBox, rx - 44, y, 44);
+		smallButton(g, mx, my, rx - 48, y + 2, "−", ACCENT, 0, height, () -> setPick(pickAmount - 1));
+
+		long total = o.price() * (long) pickAmount;
+		g.drawString(font, "Gesamt: " + Spawners.format(total), px + 14, y + 30, ACCENT, false);
+		int left = o.amount() - pickAmount;
+		note(g, y + 46, left > 0
+				? "Nach dem Deal bleiben " + left + " im Angebot – die kann noch jemand anders " + (o.sell() ? "kaufen." : "verkaufen.")
+				: "Damit " + (o.sell() ? "kaufst" : "verkaufst") + " du alle – nach dem Deal verschwindet das Angebot.");
+		formButtons(g, mx, my, "Trade starten", this::confirmAmount);
+	}
+
+	private void setPick(int n) {
+		pickAmount = Math.max(1, Math.min(amountOffer.amount(), n));
+		amountBox.setValue(Integer.toString(pickAmount));
+	}
+
+	private void confirmAmount() {
+		Offer o = amountOffer;
+		int typed = parseInt(amountBox.getValue());
+		if (typed < 1 || typed > o.amount()) {
+			market.say("Anzahl 1–" + o.amount());
+			return;
+		}
+		Trade t = market.startTrade(o, typed);
+		amountBox.setValue("");
+		mode = Mode.MARKET;
+		setFocused(null);
 		if (t != null) openTrade(t);
 	}
 
@@ -1510,6 +1577,7 @@ public class MarketScreen extends Screen {
 			if (getFocused() == chatBox) { sendChat(); return true; }
 			if (getFocused() == searchBox) { searchPlayer(); return true; }
 			if (mode == Mode.CREATE && getFocused() instanceof EditBox) { submitCreate(); return true; }
+			if (mode == Mode.AMOUNT) { confirmAmount(); return true; }
 		}
 		return super.keyPressed(e);
 	}

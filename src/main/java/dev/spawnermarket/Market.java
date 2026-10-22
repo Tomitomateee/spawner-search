@@ -363,6 +363,13 @@ public final class Market implements MarketRelay.Handler {
 		return id == null ? null : config.trades.get(id);
 	}
 
+	/** My open trade about this offer (I'm the one who asked), or null. */
+	public Trade tradeFor(Offer o) {
+		String me = me().toString();
+		for (Trade t : config.trades.values()) if (o.id().equals(t.offerId) && me.equals(t.partner)) return t;
+		return null;
+	}
+
 	/** The newest open trade with this player, or null. */
 	public Trade tradeWith(UUID other) {
 		String me = me().toString(), o = other.toString();
@@ -438,18 +445,32 @@ public final class Market implements MarketRelay.Handler {
 		if (offer.owner.equals(me())) deleteMine("o/" + me() + "/" + offer.id);
 	}
 
-	private void removeMyOffer(String offerId) {
+	/**
+	 * A deal on one of my offers: what's left stays up (10 offered, 2 bought → 8 left), a sold-out
+	 * offer is deleted.
+	 */
+	private void reduceMyOffer(String offerId, int traded) {
 		String topic = "o/" + me() + "/" + offerId;
-		if (config.published.containsKey(topic)) deleteMine(topic);
+		JsonObject cur = config.published.get(topic);
+		if (cur == null) return;
+		int left = cur.get("n").getAsInt() - traded;
+		if (left <= 0) {
+			deleteMine(topic);
+			return;
+		}
+		JsonObject rest = cur.deepCopy();
+		rest.addProperty("n", left);
+		publishMine(topic, rest);
 	}
 
 	/**
 	 * Opens a trade chat about someone else's offer (or returns the one already open), and tells
 	 * the owner so the chat shows up for them too.
 	 */
-	public Trade startTrade(Offer o) {
+	public Trade startTrade(Offer o, int amount) {
 		String me = me().toString();
 		if (o.owner.equals(me())) return null;
+		amount = Math.max(1, Math.min(o.amount, amount));
 		for (Trade t : config.trades.values()) if (o.id.equals(t.offerId) && me.equals(t.partner)) return t;
 		Trade t = new Trade();
 		t.id = newId();
@@ -461,7 +482,8 @@ public final class Market implements MarketRelay.Handler {
 		t.type = o.type;
 		t.server = o.server;
 		t.sell = o.sell;
-		t.amount = o.amount;
+		// Only the amount I picked: the rest of the offer stays for others.
+		t.amount = amount;
 		t.price = o.price;
 		t.created = System.currentTimeMillis();
 		t.messages.add(new Msg("", "", "Trade gestartet. Ein Vouch schließt den Deal ab.", t.created));
@@ -558,7 +580,7 @@ public final class Market implements MarketRelay.Handler {
 		d.addProperty("p", t.price);
 		d.addProperty("ts", System.currentTimeMillis());
 		publishMine("d/" + me() + "/" + t.id, d);
-		if (iOwn) removeMyOffer(t.offerId);
+		if (iOwn) reduceMyOffer(t.offerId, t.amount);
 	}
 
 	/** Deletes the chat; a new deal with the same player gets a new chat. */
