@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.4.6.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.4.7.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Willkommen & Clan (hugoSMP)
@@ -107,13 +107,15 @@ Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 - `tpaCommand` / `tpaAcceptCommand`: falls dein Server andere Befehle hat (Standard `tpa` / `tpaccept`).
 
 **Pro Minecraft-Account** in deinem Benutzerordner, nicht im Spiel- oder Modpack-Ordner:
-`C:\Users\<du>\.spawner-market\accounts\<UUID>.json` – offene Trade-Chats, Preiswecker und was
+`C:\Users\<du>\.spawner-market\accounts\<UUID>.json` – Clan, offene Trade-Chats, Preiswecker und was
 du veröffentlicht hast (wird nach jedem Verbinden neu gesendet). So nimmt ein weitergegebenes
 Modpack nie deine Trades mit, und mehrere Accounts auf einem PC haben jeweils ihre eigenen Daten.
 Ältere Daten aus der Config werden einmalig dorthin verschoben.
 
-Der **Clan** wird nirgends gespeichert: Die Mod merkt sich „Name gehört zu Clan“ nur, solange
-das Spiel läuft. Nach einem Neustart wird er beim nächsten hugoSMP-Join neu abgefragt.
+Der **Clan** wird gespeichert, sobald du ihn mit `/clan info` verifiziert hast – ebenfalls in der
+Account-Datei, nicht im Modpack. Er bleibt, auch wenn du offline gehst oder neu startest, und wird
+erst durch das nächste `/clan info` ersetzt (neuer Clan, derselbe oder „kein Clan“). Für die anderen
+liegt er auf dem Relay unter `k/<UUID>` und wird bei jedem Verbinden neu gesendet.
 
 ## Wichtig zu wissen
 

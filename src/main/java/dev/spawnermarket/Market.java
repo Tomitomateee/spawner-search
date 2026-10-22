@@ -64,13 +64,6 @@ public final class Market implements MarketRelay.Handler {
 	/** Other players' clan tags, from their online status. */
 	private final Map<UUID, List<Clan.Seg>> clans = new HashMap<>();
 	/**
-	 * "Name belongs to clan", read from "/clan info": kept only in memory, so it lasts until the
-	 * game is restarted and is asked again after that (never saved to a file).
-	 */
-	private static final Map<String, List<Clan.Seg>> CLAN_BY_NAME = new HashMap<>();
-	/** Names for which "/clan info" said "no clan" since the game started. */
-	private static final Set<String> NO_CLAN_NAMES = new HashSet<>();
-	/**
 	 * My tag as the relay still has it from before the restart: the others keep seeing it until I
 	 * run /clan info again (which then decides). Only shared, never shown as "my clan" here.
 	 */
@@ -804,7 +797,7 @@ public final class Market implements MarketRelay.Handler {
 		// started – then the others keep showing the tag they know.
 		List<Clan.Seg> mine = myClanTag();
 		if (mine != null) o.add("cl", Clan.toJson(mine));
-		else if (NO_CLAN_NAMES.contains(myName().toLowerCase(Locale.ROOT))) o.add("cl", new JsonArray());
+		else if (config.noClan) o.add("cl", new JsonArray());
 		else if (carriedClan != null) o.add("cl", Clan.toJson(carriedClan));
 		relay.publish("p/" + me(), o, true);
 	}
@@ -827,7 +820,7 @@ public final class Market implements MarketRelay.Handler {
 
 	/** My clan tag for the name I play with right now, or null. */
 	public List<Clan.Seg> myClanTag() {
-		return CLAN_BY_NAME.get(myName().toLowerCase(Locale.ROOT));
+		return config.clanTag;
 	}
 
 	/** Sends "/clan info"; the answer in chat sets my clan tag. */
@@ -872,16 +865,19 @@ public final class Market implements MarketRelay.Handler {
 		if (System.currentTimeMillis() > clanInfoUntil) return;
 		List<Clan.Seg> tag = Clan.parseTag(message);
 		if (tag != null) {
-			CLAN_BY_NAME.put(myName().toLowerCase(Locale.ROOT), tag);
-			NO_CLAN_NAMES.remove(myName().toLowerCase(Locale.ROOT));
+			// Verified: saved until the next /clan info replaces it (new clan or the same).
+			config.clanTag = tag;
+			config.noClan = false;
+			config.save();
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0; // share it right away
 			publishClan(tag);
 			say("Clan erkannt: " + Clan.text(tag));
 		} else if (Clan.saysNoClan(message)) {
-			CLAN_BY_NAME.remove(myName().toLowerCase(Locale.ROOT));
-			NO_CLAN_NAMES.add(myName().toLowerCase(Locale.ROOT));
+			config.clanTag = null;
+			config.noClan = true;
+			config.save();
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0;
@@ -933,6 +929,8 @@ public final class Market implements MarketRelay.Handler {
 		// The broker may have lost my retained messages: send them again.
 		for (Map.Entry<String, JsonObject> e : config.published.entrySet()) relay.publish(e.getKey(), e.getValue(), true);
 		resendTrades();
+		if (config.clanTag != null) publishClan(config.clanTag);
+		else if (config.noClan) publishClan(null);
 		// First status a few seconds later: by then my stored status (with my clan) has arrived,
 		// so it isn't overwritten by one without it.
 		lastHeartbeat = System.currentTimeMillis() - HEARTBEAT_MS + 4000;

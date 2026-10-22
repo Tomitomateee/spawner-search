@@ -78,6 +78,10 @@ public class MarketConfig {
 	// Per account (transient: never written into the config folder, see Account).
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */
 	public transient Map<String, Trade> trades = new LinkedHashMap<>();
+	/** My clan as last verified with "/clan info" (null = not verified yet or no clan). */
+	public transient List<Clan.Seg> clanTag;
+	/** The last "/clan info" said I'm in no clan. */
+	public transient boolean noClan;
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
 	public transient List<String> closedTrades = new ArrayList<>();
 	/** Price alarm per spawner type key. */
@@ -89,6 +93,8 @@ public class MarketConfig {
 
 	/** The per-account file's content. */
 	private static class Account {
+		List<Clan.Seg> clanTag;
+		boolean noClan;
 		Map<String, Trade> trades = new LinkedHashMap<>();
 		List<String> closedTrades = new ArrayList<>();
 		Map<String, Alarm> alarms = new LinkedHashMap<>();
@@ -158,6 +164,8 @@ public class MarketConfig {
 				}
 			}
 		}
+		clanTag = a.clanTag;
+		noClan = a.noClan;
 		trades = a.trades == null ? new LinkedHashMap<>() : a.trades;
 		closedTrades = a.closedTrades == null ? new ArrayList<>() : a.closedTrades;
 		alarms = a.alarms == null ? new LinkedHashMap<>() : a.alarms;
@@ -176,6 +184,8 @@ public class MarketConfig {
 		if (account == null) return;
 		try {
 			Account a = new Account();
+			a.clanTag = clanTag;
+			a.noClan = noClan;
 			a.trades = trades;
 			a.closedTrades = closedTrades;
 			a.alarms = alarms;
