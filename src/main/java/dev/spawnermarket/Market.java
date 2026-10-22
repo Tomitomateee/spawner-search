@@ -72,6 +72,8 @@ public final class Market implements MarketRelay.Handler {
 	private String message;
 	private long messageAt, lastChatAt, lastHeartbeat;
 	private String lastServer = "";
+	/** Just joined hugoSMP: the next H shows the welcome window (clan, Discord) first. */
+	private boolean welcomePending;
 	/** Goes up with every chat message, so the GUI knows when to re-wrap the lines. */
 	private int chatVersion;
 	/** Called for new offers and deals, trade chats and TPA requests. */
@@ -742,6 +744,7 @@ public final class Market implements MarketRelay.Handler {
 		String sv = server();
 		long now = System.currentTimeMillis();
 		if (!sv.equals(lastServer) || now - lastHeartbeat > HEARTBEAT_MS) {
+			if (!sv.equals(lastServer)) welcomePending = sv.contains("hugosmp");
 			lastServer = sv;
 			lastHeartbeat = now;
 			heartbeat();
@@ -760,6 +763,15 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	// ================================================================ clan
+
+	/** Whether the welcome window should come before the market (once per join of hugoSMP). */
+	public boolean welcomePending() {
+		return welcomePending && server().contains("hugosmp");
+	}
+
+	public void welcomeDone() {
+		welcomePending = false;
+	}
 
 	/** A player's clan tag, or null. */
 	public List<Clan.Seg> clanTag(UUID uuid) {

@@ -2,8 +2,12 @@ package dev.spawnermarket;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.google.gson.reflect.TypeToken;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.client.Minecraft;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -13,11 +17,19 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-/** Persisted settings, plus everything I published (re-sent after every reconnect). */
+/**
+ * Settings in the game's config folder, and the data of my Minecraft account – clan, trade chats,
+ * price alarms, what I published – in a file of its own per account in my user folder. That way
+ * a modpack (which ships the config folder) never carries anyone's trades or clan along, and two
+ * accounts on one PC each keep their own.
+ */
 public class MarketConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final Path PATH = FabricLoader.getInstance().getConfigDir().resolve("spawner-market.json");
+	/** Outside the game folder on purpose: {@code <user>/.spawner-market/accounts/<uuid>.json}. */
+	private static final Path ACCOUNTS = Path.of(System.getProperty("user.home"), ".spawner-market", "accounts");
 	private static final int SETTINGS_VERSION = 1;
 
 	/** Index into {@code Theme.ALL}. */
@@ -60,45 +72,103 @@ public class MarketConfig {
 	public boolean bannerInMenus = true;
 	/** Also on top of the Spawnerhandel menu itself. */
 	public boolean bannerInMarket = true;
-	/** My clan tag from "/clan info" (null = none / not read yet), shown before my name. */
-	public List<Clan.Seg> clanTag;
-	/** The welcome window (on hugoSMP) was passed with "Weiter". */
-	public boolean welcomeDone;
 	/** Bumped when a new default has to reach existing configs as well (see load). */
 	public int settingsVersion;
+
+	// Per account (transient: never written into the config folder, see Account).
+	/** My clan tag from "/clan info" (null = none / not read yet), shown before my name. */
+	public transient List<Clan.Seg> clanTag;
 	/** Open trade chats by trade id; a chat is deleted once its deal is closed. */
-	public Map<String, Trade> trades = new LinkedHashMap<>();
+	public transient Map<String, Trade> trades = new LinkedHashMap<>();
 	/** Ids of closed trades, so their last stored message can't bring the chat back. */
-	public List<String> closedTrades = new ArrayList<>();
+	public transient List<String> closedTrades = new ArrayList<>();
 	/** Price alarm per spawner type key. */
-	public Map<String, Alarm> alarms = new LinkedHashMap<>();
+	public transient Map<String, Alarm> alarms = new LinkedHashMap<>();
 	/** My offers, deals and vouches by relay topic, so they survive a broker restart. */
-	public Map<String, JsonObject> published = new LinkedHashMap<>();
+	public transient Map<String, JsonObject> published = new LinkedHashMap<>();
+	/** Whose data the fields above are. */
+	private transient UUID account;
+
+	/** The per-account file's content. */
+	private static class Account {
+		List<Clan.Seg> clanTag;
+		Map<String, Trade> trades = new LinkedHashMap<>();
+		List<String> closedTrades = new ArrayList<>();
+		Map<String, Alarm> alarms = new LinkedHashMap<>();
+		Map<String, JsonObject> published = new LinkedHashMap<>();
+	}
 
 	public static MarketConfig load() {
+		MarketConfig cfg = null;
+		JsonObject old = null;
 		try {
 			if (Files.exists(PATH)) {
-				MarketConfig cfg = GSON.fromJson(Files.readString(PATH, StandardCharsets.UTF_8), MarketConfig.class);
-				if (cfg != null) {
-					if (cfg.published == null) cfg.published = new LinkedHashMap<>();
-					if (cfg.trades == null) cfg.trades = new LinkedHashMap<>();
-					if (cfg.closedTrades == null) cfg.closedTrades = new ArrayList<>();
-					if (cfg.alarms == null) cfg.alarms = new LinkedHashMap<>();
-					if (cfg.notifyTypes == null) cfg.notifyTypes = new ArrayList<>();
-					cfg.bannerPos = Math.floorMod(cfg.bannerPos, 3);
-					cfg.bannerSeconds = Math.max(3, Math.min(15, cfg.bannerSeconds));
-					// 1.2.5: a banner whenever someone buys or sells – it was off before.
-					if (cfg.settingsVersion < 1) cfg.notifyAllDeals = true;
-					cfg.settingsVersion = SETTINGS_VERSION;
-					return cfg;
-				}
+				String json = Files.readString(PATH, StandardCharsets.UTF_8);
+				cfg = GSON.fromJson(json, MarketConfig.class);
+				JsonElement el = JsonParser.parseString(json);
+				if (el.isJsonObject()) old = el.getAsJsonObject();
 			}
 		} catch (Exception e) {
 			SpawnerMarketClient.LOGGER.warn("Konnte Config nicht lesen", e);
 		}
-		MarketConfig fresh = new MarketConfig();
-		fresh.settingsVersion = SETTINGS_VERSION;
-		return fresh;
+		if (cfg == null) cfg = new MarketConfig();
+		if (cfg.notifyTypes == null) cfg.notifyTypes = new ArrayList<>();
+		cfg.bannerPos = Math.floorMod(cfg.bannerPos, 3);
+		cfg.bannerSeconds = Math.max(3, Math.min(15, cfg.bannerSeconds));
+		// 1.2.5: a banner whenever someone buys or sells – it was off before.
+		if (cfg.settingsVersion < 1) cfg.notifyAllDeals = true;
+		cfg.settingsVersion = SETTINGS_VERSION;
+		cfg.loadAccount(Minecraft.getInstance().getUser().getProfileId(), old);
+		return cfg;
+	}
+
+	private Path accountFile() {
+		return ACCOUNTS.resolve(account + ".json");
+	}
+
+	/**
+	 * Reads my account's file. Before 1.4.1 this data sat in the config folder: if there's no
+	 * account file yet, what belongs to this account is taken over from there once (and the
+	 * config file is written again without it).
+	 */
+	private void loadAccount(UUID uuid, JsonObject old) {
+		account = uuid;
+		Account a = null;
+		boolean migrate = false;
+		try {
+			if (Files.exists(accountFile())) a = GSON.fromJson(Files.readString(accountFile(), StandardCharsets.UTF_8), Account.class);
+		} catch (Exception e) {
+			SpawnerMarketClient.LOGGER.warn("Konnte Account-Daten nicht lesen", e);
+		}
+		if (a == null) {
+			a = new Account();
+			if (old != null && (old.has("trades") || old.has("published") || old.has("clanTag") || old.has("alarms"))) {
+				migrate = true;
+				String me = uuid.toString();
+				try {
+					if (old.has("trades")) {
+						Map<String, Trade> all = GSON.fromJson(old.get("trades"), new TypeToken<Map<String, Trade>>() {}.getType());
+						if (all != null) for (Map.Entry<String, Trade> e : all.entrySet()) if (me.equals(e.getValue().owner) || me.equals(e.getValue().partner)) a.trades.put(e.getKey(), e.getValue());
+					}
+					if (old.has("published")) {
+						Map<String, JsonObject> all = GSON.fromJson(old.get("published"), new TypeToken<Map<String, JsonObject>>() {}.getType());
+						if (all != null) for (Map.Entry<String, JsonObject> e : all.entrySet()) if (e.getKey().contains(me)) a.published.put(e.getKey(), e.getValue());
+					}
+					if (old.has("closedTrades")) a.closedTrades = GSON.fromJson(old.get("closedTrades"), new TypeToken<List<String>>() {}.getType());
+					if (old.has("alarms")) a.alarms = GSON.fromJson(old.get("alarms"), new TypeToken<Map<String, Alarm>>() {}.getType());
+					if (old.has("clanTag")) a.clanTag = GSON.fromJson(old.get("clanTag"), new TypeToken<List<Clan.Seg>>() {}.getType());
+				} catch (Exception e) {
+					SpawnerMarketClient.LOGGER.warn("Konnte alte Daten nicht übernehmen", e);
+				}
+			}
+		}
+		clanTag = a.clanTag;
+		trades = a.trades == null ? new LinkedHashMap<>() : a.trades;
+		closedTrades = a.closedTrades == null ? new ArrayList<>() : a.closedTrades;
+		alarms = a.alarms == null ? new LinkedHashMap<>() : a.alarms;
+		published = a.published == null ? new LinkedHashMap<>() : a.published;
+		// Old data leaves the config folder right away.
+		if (migrate || (old != null && old.has("trades"))) save();
 	}
 
 	public synchronized void save() {
@@ -107,6 +177,19 @@ public class MarketConfig {
 			Files.writeString(PATH, GSON.toJson(this), StandardCharsets.UTF_8);
 		} catch (IOException e) {
 			SpawnerMarketClient.LOGGER.warn("Konnte Config nicht speichern", e);
+		}
+		if (account == null) return;
+		try {
+			Account a = new Account();
+			a.clanTag = clanTag;
+			a.trades = trades;
+			a.closedTrades = closedTrades;
+			a.alarms = alarms;
+			a.published = published;
+			Files.createDirectories(ACCOUNTS);
+			Files.writeString(accountFile(), GSON.toJson(a), StandardCharsets.UTF_8);
+		} catch (IOException e) {
+			SpawnerMarketClient.LOGGER.warn("Konnte Account-Daten nicht speichern", e);
 		}
 	}
 

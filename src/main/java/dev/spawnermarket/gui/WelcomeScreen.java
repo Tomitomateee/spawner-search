@@ -10,9 +10,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 
 /**
- * Shown the first time the market is opened on hugoSMP: greets the player, asks for "/clan info"
- * (its answer gives the clan tag shown before their name) and links the Discord. "Weiter" leads
- * to the market and isn't shown again.
+ * Shown the first time the market is opened after joining hugoSMP (on every join): greets the
+ * player, asks for "/clan info" (its answer gives the clan tag shown before their name) and links
+ * the Discord. "Weiter" leads to the market.
  */
 public class WelcomeScreen extends Screen {
 	public static final String DISCORD = "https://discord.gg/KZMCU84vAa";
@@ -105,8 +105,7 @@ public class WelcomeScreen extends Screen {
 			return true;
 		}
 		if (hover(mx, my, x + 12, by, bw, 20)) {
-			market.config().welcomeDone = true;
-			market.config().save();
+			market.welcomeDone();
 			minecraft.setScreen(new MarketScreen(market));
 			return true;
 		}

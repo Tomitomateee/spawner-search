@@ -71,8 +71,8 @@ public class SpawnerMarketClient implements ClientModInitializer {
 			market.tick();
 			while (open.consumeClick()) {
 				if (client.screen != null) continue;
-				// First time on hugoSMP: the welcome window (clan, Discord) before the market.
-				if (!market.config().welcomeDone && WelcomeScreen.isHugoSmp()) client.setScreen(new WelcomeScreen(market));
+				// Each time I join hugoSMP: the welcome window (clan, Discord) before the market.
+				if (market.welcomePending()) client.setScreen(new WelcomeScreen(market));
 				else client.setScreen(new MarketScreen(market));
 			}
 		});
