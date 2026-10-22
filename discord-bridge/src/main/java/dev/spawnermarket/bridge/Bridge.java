@@ -49,7 +49,22 @@ public final class Bridge implements Relay.Handler {
 	}
 
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	private static final Path CONFIG = Path.of("bridge.json"), STATE = Path.of("bridge-state.json");
+	/**
+	 * All files live next to the jar, so it works no matter where it's started from (autostart,
+	 * a shortcut, javaw without a console).
+	 */
+	private static final Path HOME = home();
+	private static final Path CONFIG = HOME.resolve("bridge.json"), STATE = HOME.resolve("bridge-state.json");
+	private static final Path STOP = HOME.resolve("stop.flag"), LOCK = HOME.resolve("bridge.lock");
+
+	private static Path home() {
+		try {
+			Path jar = Path.of(Bridge.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+			return Files.isRegularFile(jar) ? jar.getParent() : Path.of("").toAbsolutePath();
+		} catch (Exception e) {
+			return Path.of("").toAbsolutePath();
+		}
+	}
 
 	// ================================================================ market data (same rules as the mod)
 
@@ -96,6 +111,16 @@ public final class Bridge implements Relay.Handler {
 		// Umlauts and emoji in the console (start.bat switches it to UTF-8).
 		System.setOut(new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), true, StandardCharsets.UTF_8));
 		boolean dryRun = List.of(args).contains("--dry-run");
+		if (!dryRun) {
+			// Only one at a time: a second start (e.g. autostart plus a double click) just ends.
+			java.nio.channels.FileChannel lock = java.nio.channels.FileChannel.open(LOCK,
+					java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.WRITE);
+			if (lock.tryLock() == null) {
+				log("Läuft schon – dieser zweite Start beendet sich.");
+				return;
+			}
+			Files.deleteIfExists(STOP);
+		}
 		if (!Files.exists(CONFIG)) {
 			Config example = new Config();
 			for (String c : new String[] { "verkauf", "ankauf", "preise", "vouches" }) example.webhooks.put(c, "");
@@ -130,6 +155,16 @@ public final class Bridge implements Relay.Handler {
 		relay.start();
 		while (true) {
 			Thread.sleep(5000);
+			// stop.bat leaves this file: end cleanly.
+			if (!dryRun && Files.exists(STOP)) {
+				try {
+					Files.deleteIfExists(STOP);
+				} catch (Exception ignored) {
+					// ending anyway
+				}
+				log("Beendet (stop.bat)");
+				System.exit(0);
+			}
 			// Give the broker a few seconds to hand out everything stored before the first update.
 			if (!relay.connected() || System.currentTimeMillis() - connectedAt < 8000) continue;
 			try {
@@ -586,7 +621,7 @@ public final class Bridge implements Relay.Handler {
 		return System.currentTimeMillis();
 	}
 
-	private static final Path LOG = Path.of("bridge.log");
+	private static final Path LOG = HOME.resolve("bridge.log");
 
 	/** Console and bridge.log (kept small: started over beyond 1 MB). */
 	static synchronized void log(String msg) {

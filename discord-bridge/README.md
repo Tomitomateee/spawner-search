@@ -56,15 +56,23 @@ installiert hast, reicht meist).
      wenn sich nichts geändert hat (Standard 3). Änderungen erscheinen sofort.
    - `postExistingVouches`: `true` postet beim ersten Start auch alle alten Vouches. Standard:
      nur neue.
-5. `start.bat` starten. Die Bridge läuft dann **im Hintergrund ohne Fenster** weiter und startet
-   sich von selbst neu, falls sie einmal abbricht. Nach ein paar Sekunden erscheinen die
-   Nachrichten in den Kanälen.
-   - **Beenden:** `stop.bat`.
+5. `start.bat` starten. Die Bridge läuft dann **im Hintergrund ohne Fenster** (mit `javaw`).
+   Nach ein paar Sekunden erscheinen die Nachrichten in den Kanälen.
+   - **Beenden:** `stop.bat` (sie hört nach ein paar Sekunden auf).
    - **Was sie tut** (aktualisiert, aufgefrischt, Fehler von Discord): steht in `bridge.log`.
-   - **Zum Zuschauen:** `start-mit-fenster.bat` zeigt alles in einem Fenster – schließt du das
-     Fenster, stoppt die Bridge.
-   - Nach einem PC-Neustart musst du `start.bat` wieder starten (oder eine Verknüpfung davon in
-     den Autostart-Ordner legen: `Win+R` → `shell:startup`).
+   - Startest du sie zweimal, beendet sich der zweite Start von selbst.
+   - **Zum Zuschauen** im Fenster: `java -jar spawner-market-discord.jar` in einer
+     Eingabeaufforderung im Ordner.
+6. **Autostart** (startet bei jeder Windows-Anmeldung mit): `Win+R` → `shell:startup` → Enter.
+   In den Ordner, der aufgeht, mit **Rechtsklick → Neu → Verknüpfung** eine Verknüpfung anlegen
+   und als Speicherort eintragen:
+
+   ```
+   javaw -jar "C:\Pfad\zu\spawner-market-discord.jar"
+   ```
+
+   Name z. B. „Spawner-Markt Discord“ → Fertig stellen. Ein Virenscanner kann fragen, ob er das
+   erlauben soll – das ist dieser Start der Bridge.
 
 **Probelauf ohne Discord:** `java -jar spawner-market-discord.jar --dry-run` zeigt im Fenster,
 was gepostet würde, und beendet sich.

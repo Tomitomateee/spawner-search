@@ -5,4 +5,5 @@ bridge-state.json
 build/
 
 bridge.log
+bridge.lock
 stop.flag
