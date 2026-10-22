@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "spawnermarket",
+  "version": "${version}",
+  "name": "Spawner Market",
+  "description": "Spawnerhandel im Spiel: Angebote, Deals, Spawner-Preise, externer Chat, Vouches und TPA – mit Liquid-Glass-Oberfläche.",
+  "authors": ["tomip"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["dev.spawnermarket.SpawnerMarketClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
