@@ -1081,7 +1081,7 @@ public class MarketScreen extends Screen {
 			g.drawString(font, ago, x + w - 6 - font.width(ago), y + 5, TEXT_FAINT, false);
 			for (int j = 0; j < lines.size(); j++) g.drawString(font, lines.get(j), x + 8, y + 16 + j * 10, TEXT_SOFT, false);
 			if (v.from().equals(me) && hov) {
-				smallButton(g, mx, my, x + w - 4, y + h - 16, "✕", RED, top, bottom, () -> market.removeVouch(v.target()));
+				smallButton(g, mx, my, x + w - 4, y + h - 16, "✕", RED, top, bottom, () -> market.removeVouch(v));
 			} else {
 				hitClipped(x, y, w, 14, top, bottom, () -> selectTarget(v.from(), v.fromName()));
 			}

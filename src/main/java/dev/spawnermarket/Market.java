@@ -53,7 +53,7 @@ public final class Market implements MarketRelay.Handler {
 	private final Map<String, Offer> offers = new HashMap<>();
 	/** "trade/publisher" → that side's record of the deal. */
 	private final Map<String, Deal> dealRecords = new HashMap<>();
-	/** "target/from" → vouch: one vouch per pair, the newest counts. */
+	/** "target/from/trade" → vouch: one per trade, so vouches from the same player stack. */
 	private final Map<String, Vouch> vouches = new HashMap<>();
 	private final Map<UUID, Presence> presence = new HashMap<>();
 	private final Map<UUID, String> names = new HashMap<>();
@@ -308,7 +308,7 @@ public final class Market implements MarketRelay.Handler {
 		return list;
 	}
 
-	/** {positive, neutral, negative}; one vouch per person (the newest), positives only with a confirmed deal. */
+	/** {positive, neutral, negative}; every trade's vouch counts, positives only with a confirmed deal. */
 	public int[] score(UUID target) {
 		Set<String> confirmed = confirmedTrades();
 		int pos = 0, neu = 0, neg = 0;
@@ -319,10 +319,6 @@ public final class Market implements MarketRelay.Handler {
 			else neg++;
 		}
 		return new int[] { pos, neu, neg };
-	}
-
-	public Vouch myVouchFor(UUID target) {
-		return vouches.get(target + "/" + me());
 	}
 
 	/** Players with the most positive vouches, for the right panel when nobody is selected. */
@@ -540,8 +536,8 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	/**
-	 * Vouches the other player of an open trade (only possible in a trade; my newest vouch for a
-	 * player replaces the older one, so they don't stack). Positive: the deal went through, it is
+	 * Vouches the other player of an open trade (only possible in a trade; each trade gets its own
+	 * vouch, so vouches from the same player stack). Positive: the deal went through, it is
 	 * recorded for both and the chat is deleted. Neutral: the trade didn't happen, the chat is
 	 * deleted but the offer stays. Negative: no deal, the chat is deleted.
 	 */
@@ -562,7 +558,7 @@ public final class Market implements MarketRelay.Handler {
 		v.addProperty("tr", trade.id);
 		v.addProperty("tx", text);
 		v.addProperty("ts", System.currentTimeMillis());
-		publishMine("v/" + target + "/" + me(), v);
+		publishMine("v/" + target + "/" + me() + "/" + trade.id, v);
 		if (rating > 0) publishDeal(trade);
 		sendTrade(trade, "close", "", rating > 0);
 		forgetTrade(trade);
@@ -572,8 +568,12 @@ public final class Market implements MarketRelay.Handler {
 		return null;
 	}
 
-	public void removeVouch(UUID target) {
-		deleteMine("v/" + target + "/" + me());
+	public void removeVouch(Vouch v) {
+		if (!v.from.equals(me())) return;
+		// Vouches from 1.2.x have no trade in their topic.
+		String topic = "v/" + v.target + "/" + me() + (v.trade.isEmpty() ? "" : "/" + v.trade);
+		if (!config.published.containsKey(topic)) topic = "v/" + v.target + "/" + me();
+		deleteMine(topic);
 	}
 
 	/** Sends the server's TPA command and tells the player on the relay so they can accept in the menu. */
@@ -754,8 +754,9 @@ public final class Market implements MarketRelay.Handler {
 	}
 
 	private void onVouch(String[] part, JsonObject o) {
-		if (part.length != 3) return;
-		String key = part[1] + "/" + part[2];
+		// v/<target>/<from>/<trade>; v/<target>/<from> from 1.2.x (one per pair).
+		if (part.length != 3 && part.length != 4) return;
+		String key = part[1] + "/" + part[2] + (part.length == 4 ? "/" + part[3] : "");
 		if (o == null) {
 			vouches.remove(key);
 			return;
@@ -763,6 +764,7 @@ public final class Market implements MarketRelay.Handler {
 		UUID from = author(o, part[2]);
 		UUID target = UUID.fromString(part[1]);
 		if (!str(o, "to").equals(part[1]) || target.equals(from)) return;
+		if (part.length == 4 && !str(o, "tr").equals(part[3])) return;
 		String tn = playerName(str(o, "tn"));
 		if (!tn.isEmpty() && !target.equals(me())) names.putIfAbsent(target, tn);
 		int rating = o.has("r") ? Integer.signum(o.get("r").getAsInt()) : o.get("pos").getAsBoolean() ? 1 : -1;

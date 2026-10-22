@@ -107,7 +107,7 @@ public final class MarketRelay {
 					byte[] ack = in.readNBytes(header[1]);
 					if ((header[0] >> 4) != 2 || ack.length < 2 || ack[1] != 0) throw new IOException("MQTT connect refused");
 					socket = s;
-					o.write(subscribePacket(ROOT + "o/+/+", ROOT + "d/+/+", ROOT + "v/+/+", ROOT + "p/+",
+					o.write(subscribePacket(ROOT + "o/+/+", ROOT + "d/+/+", ROOT + "v/#", ROOT + "p/+",
 							ROOT + "m/" + id + "/+", ROOT + "t/" + id));
 					o.flush();
 					out = o;

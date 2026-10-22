@@ -51,7 +51,8 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
   (+ / −, Text, Datum) und ob er gerade online ist und wo.
 - **Vouchen geht nur nach einem Trade** – also nur für den Partner eines offenen Trade-Chats.
   Text eingeben und **+ Deal**, **○ Neutral** oder **− Neg.** klicken.
-- Vouches stacken nicht: Pro Person zählt nur ihr neuester Vouch. Ein positiver Vouch zählt erst,
+- Vouches stacken: Jeder Trade bekommt seinen eigenen Vouch, auch vom selben Spieler – egal ob
+  positiv, neutral oder negativ. Ein positiver Vouch zählt erst,
   wenn beide Seiten den Deal bestätigt haben (vorher „unbestätigt“).
 - Ohne Auswahl: Rangliste der Top-Händler. Dein Kopf oben rechts zeigt deine eigenen Vouches.
 
