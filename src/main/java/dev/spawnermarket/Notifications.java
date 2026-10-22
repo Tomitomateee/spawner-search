@@ -144,6 +144,11 @@ public final class Notifications {
 		};
 	}
 
+	/** Example banner for the price alarm's "Test" buttons. */
+	public static Banner.Note sampleAlarm() {
+		return alarmNote(new Offer("test", null, "Beispiel", "", "iron_golem", true, 6, 3_200_000, "", System.currentTimeMillis()));
+	}
+
 	private static String amountName(int amount, String type) {
 		Spawners.Type t = Spawners.get(type);
 		return amount + "× " + (t == null ? type : t.name());

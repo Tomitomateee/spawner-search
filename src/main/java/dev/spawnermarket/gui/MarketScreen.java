@@ -268,16 +268,7 @@ public class MarketScreen extends Screen {
 				}) + 4;
 			}
 		}
-		if (tab == 0) {
-			String mine = "Meine Gebote";
-			int mw = font.width(mine) + 12;
-			chip(g, mx, my, px + PW - 12 - mw, fy, mine, myOnly, () -> {
-				myOnly = !myOnly;
-				listScroll = 0;
-			});
-		} else {
-			g.drawString(font, tab == 1 ? "Abgeschlossene Deals" : "Höchste Preise", px + 14, fy + 3, TEXT_SOFT, false);
-		}
+		if (tab != 0) g.drawString(font, tab == 1 ? "Abgeschlossene Deals" : "Höchste Preise", px + 14, fy + 3, TEXT_SOFT, false);
 
 		// Spawner filter: click a model to show only that spawner, click again for all.
 		int n = Spawners.ALL.length, cell = (PW - 24) / n, gx = px + 12 + (PW - 24 - n * cell) / 2, gy = py + 68;
@@ -306,10 +297,21 @@ public class MarketScreen extends Screen {
 		// Bottom: create an offer / explanation.
 		int by = py + H - 28;
 		if (tab == 0) {
-			boolean hb = hover(mx, my, px + 12, by, PW - 24, 20);
-			Glass.pill(g, px + 12, by, PW - 24, 20, ACCENT_TOP, ACCENT_BOTTOM, hb);
-			centered(g, "+ Angebot erstellen", px + PW / 2, by + 6, WHITE);
-			hit(px + 12, by, PW - 24, 20, this::openCreate);
+			// "Meine Gebote" (all my own offers, every server) on the left, create on the right.
+			int mw = 84;
+			boolean hm = hover(mx, my, px + 12, by, mw, 20);
+			if (myOnly) Glass.pill(g, px + 12, by, mw, 20, TEAL_TOP, TEAL_BOTTOM, hm);
+			else Glass.pill(g, px + 12, by, mw, 20, PILL_TOP, PILL_BOTTOM, hm);
+			centered(g, "Meine Gebote", px + 12 + mw / 2, by + 6, myOnly ? WHITE : TEXT);
+			hit(px + 12, by, mw, 20, () -> {
+				myOnly = !myOnly;
+				listScroll = 0;
+			});
+			int cx = px + 12 + mw + 6, cw = PW - 24 - mw - 6;
+			boolean hb = hover(mx, my, cx, by, cw, 20);
+			Glass.pill(g, cx, by, cw, 20, ACCENT_TOP, ACCENT_BOTTOM, hb);
+			centered(g, "+ Angebot", cx + cw / 2, by + 6, WHITE);
+			hit(cx, by, cw, 20, this::openCreate);
 		} else {
 			centered(g, tab == 1 ? "Deals entstehen durch einen Vouch" : "Höchster Ankauf / Verkauf · Ø aus Deals",
 					px + PW / 2, by + 6, TEXT_FAINT);
@@ -573,49 +575,54 @@ public class MarketScreen extends Screen {
 
 	private void renderNotify(GuiGraphics g, int mx, int my) {
 		MarketConfig c = market.config();
-		segmented(g, mx, my, px + 12, py + 28, PW - 24, new String[] { "Angebote", "Trades", "Anzeige" }, notifyTab, i -> notifyTab = i);
+		segmented(g, mx, my, px + 12, py + 28, PW - 24, new String[] { "Angebote", "Trades", "Anzeige", "Wecker" }, notifyTab, i -> notifyTab = i);
 		switch (notifyTab) {
 			case 1 -> {
-				setting(g, py + 54, "Neue Trades", c.notifyTrades, () -> c.notifyTrades = !c.notifyTrades);
-				hint(g, py + 69, "Jemand will über dein Angebot handeln");
-				setting(g, py + 86, "Trade-Nachrichten", c.notifyMessages, () -> c.notifyMessages = !c.notifyMessages);
-				setting(g, py + 106, "Deal / Trade beendet", c.notifyTradeEnd, () -> c.notifyTradeEnd = !c.notifyTradeEnd);
-				setting(g, py + 126, "TPA-Anfragen", c.notifyTpa, () -> c.notifyTpa = !c.notifyTpa);
-				setting(g, py + 146, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals);
-				hint(g, py + 161, "Mit Server- und Spawner-Filter");
+				int y = py + 52;
+				y = settingRow(g, y, "Neue Trades", c.notifyTrades, () -> c.notifyTrades = !c.notifyTrades,
+						"Jemand klickt bei deinem Angebot auf „Handeln“");
+				y = settingRow(g, y, "Trade-Nachrichten", c.notifyMessages, () -> c.notifyMessages = !c.notifyMessages,
+						"Dein Handelspartner schreibt dir im Trade-Chat");
+				y = settingRow(g, y, "Deal / Trade beendet", c.notifyTradeEnd, () -> c.notifyTradeEnd = !c.notifyTradeEnd,
+						"Dein Partner hat gevoucht: Deal bestätigt oder Trade zu");
+				y = settingRow(g, y, "TPA-Anfragen", c.notifyTpa, () -> c.notifyTpa = !c.notifyTpa,
+						"Jemand will sich per /tpa zu dir teleportieren");
+				settingRow(g, y, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals,
+						"Deals anderer Spieler – nutzt Server- und Spawner-Filter");
 			}
 			case 2 -> {
-				g.drawString(font, "Position oben", px + 14, py + 56, TEXT, false);
-				segmented(g, mx, my, px + 12, py + 68, PW - 24, new String[] { "Links", "Mitte", "Rechts" }, c.bannerPos, i -> {
+				g.drawString(font, "Position oben", px + 14, py + 54, TEXT, false);
+				note(g, py + 64, "Wo die Banner am oberen Bildrand erscheinen");
+				segmented(g, mx, my, px + 12, py + 74, PW - 24, new String[] { "Links", "Mitte", "Rechts" }, c.bannerPos, i -> {
 					c.bannerPos = i;
 					c.save();
 				});
-				g.drawString(font, "Anzeigedauer", px + 14, py + 97, TEXT, false);
+				g.drawString(font, "Anzeigedauer", px + 14, py + 101, TEXT, false);
 				int rx = px + PW - 12;
-				rx -= smallButton(g, mx, my, rx, py + 94, "+", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds + 1)) + 4;
+				rx -= smallButton(g, mx, my, rx, py + 98, "+", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds + 1)) + 4;
 				String secs = c.bannerSeconds + " s";
-				g.drawString(font, secs, rx - font.width(secs), py + 97, TEXT_SOFT, false);
+				g.drawString(font, secs, rx - font.width(secs), py + 101, TEXT_SOFT, false);
 				rx -= font.width(secs) + 4;
-				smallButton(g, mx, my, rx, py + 94, "−", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds - 1));
-				setting(g, py + 116, "Ton", c.bannerSound, () -> c.bannerSound = !c.bannerSound);
-				setting(g, py + 136, "Auch über Menüs", c.bannerInMenus, () -> c.bannerInMenus = !c.bannerInMenus);
-				hint(g, py + 151, "Inventar, Kisten, Pause-Menü…");
-				hint(g, py + 172, "Kein Banner, solange dieses Menü");
-				hint(g, py + 182, "offen ist – es zeigt alles selbst.");
+				smallButton(g, mx, my, rx, py + 98, "−", ACCENT, 0, height, () -> setBannerSeconds(c.bannerSeconds - 1));
+				note(g, py + 111, "Wie lange ein Banner stehen bleibt (3–15 s)");
+				int y = py + 124;
+				y = settingRow(g, y, "Ton", c.bannerSound, () -> c.bannerSound = !c.bannerSound,
+						"Glocke bei Angeboten/Deals, Pling bei Nachrichten");
+				y = settingRow(g, y, "Auch über Menüs", c.bannerInMenus, () -> c.bannerInMenus = !c.bannerInMenus,
+						"Auch im Inventar, in Kisten und im Pause-Menü");
+				note(g, y + 2, "Solange dieses Menü offen ist, kommen keine");
+				note(g, y + 11, "Banner – hier siehst du ja schon alles.");
 			}
+			case 3 -> renderNotifyAlarms(g, mx, my, c);
 			default -> renderNotifyOffers(g, mx, my, c);
 		}
 
-		// Bottom: try it out, back.
+		// Bottom: try it out (examples for the open tab), back.
 		int by = py + H - 28, cw = 80;
 		boolean ht = hover(mx, my, px + 12, by, cw, 20);
 		Glass.pill(g, px + 12, by, cw, 20, PILL_TOP, PILL_BOTTOM, ht);
 		centered(g, "Test", px + 12 + cw / 2, by + 6, TEXT);
-		hit(px + 12, by, cw, 20, () -> {
-			// Takes turns: two offers, a trade message, a new trade.
-			int i = testBanner++ % 4;
-			Notifications.show(c, Notifications.sample(i), i != 2);
-		});
+		hit(px + 12, by, cw, 20, () -> testBanner(c));
 		int ox = px + 12 + cw + 8, ow = PW - 24 - cw - 8;
 		boolean ho = hover(mx, my, ox, by, ow, 20);
 		Glass.pill(g, ox, by, ow, 20, ACCENT_TOP, ACCENT_BOTTOM, ho);
@@ -623,9 +630,64 @@ public class MarketScreen extends Screen {
 		hit(ox, by, ow, 20, this::backToMarket);
 	}
 
+	/** Shows example banners that fit the open tab: offers, trades, all of them, or the price alarm. */
+	private void testBanner(MarketConfig c) {
+		int i = testBanner++;
+		switch (notifyTab) {
+			case 0 -> Notifications.show(c, Notifications.sample(i % 2), true);
+			case 1 -> {
+				int k = 2 + i % 2;
+				Notifications.show(c, Notifications.sample(k), k != 2);
+			}
+			case 3 -> Notifications.show(c, Notifications.sampleAlarm(), true);
+			default -> {
+				int k = i % 5;
+				if (k == 4) Notifications.show(c, Notifications.sampleAlarm(), true);
+				else Notifications.show(c, Notifications.sample(k), k != 2);
+			}
+		}
+	}
+
+	/** The price alarm explained, what is set, and a way to set it. */
+	private void renderNotifyAlarms(GuiGraphics g, int mx, int my, MarketConfig c) {
+		g.drawString(font, "Preiswecker", px + 14, py + 54, TEXT, false);
+		note(g, py + 65, "Meldet sich, sobald auf deinem Server ein Angebot");
+		note(g, py + 74, "deinen Wunschpreis erreicht – auch wenn die");
+		note(g, py + 83, "Angebots-Banner aus sind.");
+		note(g, py + 95, "Kaufen ≤: jemand verkauft so billig oder billiger");
+		note(g, py + 104, "Verkaufen ≥: jemand kauft so teuer oder teurer");
+
+		// What is set right now.
+		int y = py + 118, x = px + 12;
+		List<Spawners.Type> set = new ArrayList<>();
+		for (Spawners.Type t : Spawners.ALL) {
+			MarketConfig.Alarm a = c.alarms.get(t.key());
+			if (a != null && a.price > 0) set.add(t);
+		}
+		if (set.isEmpty()) {
+			g.drawString(font, "Noch kein Preiswecker gestellt", px + 14, y + 4, TEXT_SOFT, false);
+		} else {
+			for (int i = 0; i < set.size(); i++) {
+				Spawners.Type t = set.get(i);
+				MarketConfig.Alarm a = c.alarms.get(t.key());
+				int cx = x + (i % 2) * 104, cy = y + (i / 2) * 18;
+				t.draw(g, cx, cy, 14);
+				String s = (a.buy ? "≤ " : "≥ ") + Spawners.format(a.price);
+				g.drawString(font, clip(t.name() + " " + s, 84), cx + 17, cy + 3, a.buy ? TEAL_BOTTOM : ACCENT_TOP, false);
+			}
+		}
+		int by = py + H - 52;
+		boolean hs = hover(mx, my, px + 12, by, PW - 24, 18);
+		Glass.pill(g, px + 12, by, PW - 24, 18, TEAL_TOP, TEAL_BOTTOM, hs);
+		centered(g, "Preiswecker einstellen  ›", px + PW / 2, by + 5, WHITE);
+		hit(px + 12, by, PW - 24, 18, this::openAlarms);
+	}
+
 	private void renderNotifyOffers(GuiGraphics g, int mx, int my, MarketConfig c) {
-		setting(g, py + 54, "Neue Angebote", c.notifyOffers, () -> c.notifyOffers = !c.notifyOffers);
-		int cx = px + 12, fy = py + 74;
+		settingRow(g, py + 52, "Neue Angebote", c.notifyOffers, () -> c.notifyOffers = !c.notifyOffers,
+				"Banner, sobald jemand ein Angebot erstellt");
+		note(g, py + 83, "Welche Angebote:");
+		int cx = px + 12, fy = py + 93;
 		cx += chip(g, mx, my, cx, fy, "Verkauf", c.notifySell, () -> {
 			c.notifySell = !c.notifySell;
 			c.save();
@@ -640,23 +702,23 @@ public class MarketScreen extends Screen {
 			c.notifyMyServer = !c.notifyMyServer;
 			c.save();
 		});
-		setting(g, py + 94, "Nur gute Preise", c.notifyGoodPrices, () -> c.notifyGoodPrices = !c.notifyGoodPrices);
-		hint(g, py + 109, "Nur besser als der Schnittpreis");
+		settingRow(g, py + 113, "Nur gute Preise", c.notifyGoodPrices, () -> c.notifyGoodPrices = !c.notifyGoodPrices,
+				"Verkauf unter / Ankauf über dem Schnitt der Deals");
 
 		// Which spawners: none picked = all. Same cells as in "Angebot erstellen".
-		g.drawString(font, "Spawner", px + 14, py + 126, TEXT, false);
+		g.drawString(font, "Spawner", px + 14, py + 143, TEXT, false);
 		if (c.notifyTypes.isEmpty()) {
-			g.drawString(font, "alle", px + PW - 14 - font.width("alle"), py + 126, TEXT_SOFT, false);
+			g.drawString(font, "alle", px + PW - 14 - font.width("alle"), py + 143, TEXT_SOFT, false);
 		} else {
 			String reset = c.notifyTypes.size() + " gewählt  ✕";
-			boolean hr = hover(mx, my, px + PW - 16 - font.width(reset), py + 124, font.width(reset) + 4, 12);
-			g.drawString(font, reset, px + PW - 14 - font.width(reset), py + 126, hr ? ACCENT : TEXT_SOFT, false);
-			hit(px + PW - 16 - font.width(reset), py + 124, font.width(reset) + 4, 12, () -> {
+			boolean hr = hover(mx, my, px + PW - 16 - font.width(reset), py + 141, font.width(reset) + 4, 12);
+			g.drawString(font, reset, px + PW - 14 - font.width(reset), py + 143, hr ? ACCENT : TEXT_SOFT, false);
+			hit(px + PW - 16 - font.width(reset), py + 141, font.width(reset) + 4, 12, () -> {
 				c.notifyTypes.clear();
 				c.save();
 			});
 		}
-		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, gy = py + 138, ch = 42;
+		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, gy = py + 154, ch = 26;
 		for (int i = 0; i < n; i++) {
 			Spawners.Type type = Spawners.ALL[i];
 			int x = gx + i * cell, cw = cell - 2;
@@ -664,15 +726,21 @@ public class MarketScreen extends Screen {
 			if (sel) Glass.roundRect(g, x, gy, cw, ch, 6, ACCENT_TOP, ACCENT_BOTTOM);
 			else Glass.roundRect(g, x, gy, cw, ch, 6, hov ? 0x80FFFFFF : 0x40FFFFFF, hov ? 0x60FFFFFF : 0x20FFFFFF);
 			Glass.roundOutline(g, x, gy, cw, ch, 6, 0x90FFFFFF);
-			int is = Math.min(24, cw - 4);
-			type.draw(g, x + (cw - is) / 2, gy + 3, is);
-			smallCentered(g, type.name(), x + cw / 2, gy + 31, sel ? WHITE : TEXT_SOFT, 0.7f);
+			int is = Math.min(22, cw - 4);
+			type.draw(g, x + (cw - is) / 2, gy + 2, is);
 			hit(x, gy, cw, ch, () -> {
 				if (!c.notifyTypes.remove(type.key())) c.notifyTypes.add(type.key());
 				c.save();
 			});
 		}
-		hint(g, gy + ch + 6, "Nichts gewählt = alle Spawner");
+		note(g, gy + ch + 4, "Antippen = nur diese melden · nichts gewählt = alle");
+	}
+
+	/** On/off row with a short explanation below; returns where the next row goes. */
+	private int settingRow(GuiGraphics g, int y, String label, boolean on, Runnable flip, String explain) {
+		setting(g, y, label, on, flip);
+		note(g, y + 16, explain);
+		return y + 30;
 	}
 
 	/** On/off row on the settings page; saves right away. */
@@ -683,8 +751,14 @@ public class MarketScreen extends Screen {
 		});
 	}
 
-	private void hint(GuiGraphics g, int y, String text) {
-		g.drawString(font, clip(text, PW - 28), px + 14, y, TEXT_FAINT, false);
+	/** A line of explanation in small, faint text. */
+	private void note(GuiGraphics g, int y, String text) {
+		float s = 0.8f;
+		g.pose().pushMatrix();
+		g.pose().translate(px + 14, y);
+		g.pose().scale(s, s);
+		g.drawString(font, clip(text, (int) ((PW - 28) / s)), 0, 0, TEXT_FAINT, false);
+		g.pose().popMatrix();
 	}
 
 	private void setBannerSeconds(int s) {
@@ -775,13 +849,15 @@ public class MarketScreen extends Screen {
 
 	/** One row per spawner: model, name, buy/sell switch and the price to wait for. */
 	private void renderAlarms(GuiGraphics g, int mx, int my) {
-		g.drawString(font, "Preiswecker", px + 14, py + 32, TEXT, false);
+		g.drawString(font, "Preiswecker", px + 14, py + 30, TEXT, false);
+		smallButton(g, mx, my, px + PW - 12, py + 27, "Test", ACCENT, 0, height,
+				() -> Notifications.show(market.config(), Notifications.sampleAlarm(), true));
 		String sv = Market.server();
-		g.drawString(font, clip(sv.isEmpty() ? "gilt für deinen Server" : "für " + sv, PW - 110), px + 90, py + 32, TEXT_FAINT, false);
+		note(g, py + 41, "Preis eintragen und Art wählen – gilt für " + (sv.isEmpty() ? "deinen Server" : sv));
 		for (int i = 0; i < Spawners.ALL.length; i++) {
 			Spawners.Type t = Spawners.ALL[i];
 			MarketConfig.Alarm a = market.config().alarms.computeIfAbsent(t.key(), k -> new MarketConfig.Alarm());
-			int y = py + 44 + i * 22, x = px + 8, w = PW - 16;
+			int y = py + 51 + i * 21, x = px + 8, w = PW - 16;
 			Glass.glass(g, x, y, w, 20, 8, 0x58FFFFFF, 0x38FFFFFF);
 			t.draw(g, x + 3, y + 2, 16);
 			g.drawString(font, t.name(), x + 24, y + 6, TEXT, false);
@@ -791,7 +867,8 @@ public class MarketScreen extends Screen {
 			chip(g, mx, my, cx, y + 3, mode, a.buy, () -> a.buy = !a.buy);
 			field(g, alarmBoxes[i], cx + cw + 4, y + 1, x + w - 4 - (cx + cw + 4));
 		}
-		centered(g, "Leer = aus · Meldung bei deinem Preis", px + PW / 2, py + H - 44, TEXT_FAINT);
+		note(g, py + H - 48, "Kaufen ≤: Meldung, wenn jemand so billig verkauft");
+		note(g, py + H - 40, "Verkaufen ≥: wenn jemand so viel zahlt · leer = aus");
 		formButtons(g, mx, my, "Speichern", this::backToMarket);
 	}
 

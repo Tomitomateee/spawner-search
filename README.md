@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.2.2.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.2.3.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -18,7 +18,8 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 
 ### Mitte – Spawnerhandel
 - **Markt:** alle Angebote auf deinem Server, höchster Preis zuerst. Filter: Alle / Verkauf /
-  Ankauf und **Meine Gebote** (alle deine eigenen Angebote, auf jedem Server).
+  Ankauf. Unten links **Meine Gebote** (alle deine eigenen Angebote, auf jedem Server), rechts
+  daneben **+ Angebot**.
   Grüner Punkt = Anbieter ist online.
 - **Spawner-Filter:** unter den Tabs eine Reihe mit den Spawner-Modellen – Klick zeigt nur diesen
   Spawner (in Markt, Deals und Preise), nochmal klicken = alle.
@@ -72,7 +73,10 @@ neue Trades an deinen Angeboten, Trade-Nachrichten, bestätigte/beendete Trades 
 Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 - **Angebote:** Verkauf/Ankauf, nur dein Server, nur gute Preise, nur bestimmte Spawner.
 - **Trades:** neue Trades, Nachrichten, Deal/Trade beendet, TPA, alle neuen Deals auf dem Markt.
-- **Anzeige:** Position (links/Mitte/rechts), Dauer, Ton, auch über anderen Menüs. **Test** zeigt Beispiele.
+- **Anzeige:** Position (links/Mitte/rechts), Dauer, Ton, auch über anderen Menüs.
+- **Wecker:** erklärt den Preiswecker, zeigt welche gestellt sind und führt zum Einstellen.
+- Unter jeder Einstellung steht kurz, was sie macht. **Test** zeigt Beispiel-Banner passend zum
+  offenen Tab – im Tab „Wecker“ (und oben auf der Preiswecker-Seite) einen Preiswecker-Banner.
 
 Solange das Spawnerhandel-Menü offen ist, kommen keine Banner – es zeigt alles selbst.
 
