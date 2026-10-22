@@ -20,9 +20,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Connection to a free public MQTT broker (no login, no server plugin needed). Offers, deals,
- * vouches and the last chat message of every player are "retained", so they arrive the moment
- * someone connects; DMs and TPA requests go straight to the recipient's topic. Messages are
+ * Connection to a free public MQTT broker (no login, no server plugin needed). Offers, deals
+ * and vouches are "retained", so they arrive the moment
+ * someone connects; trade chat messages and TPA requests go straight to the recipient's topic. Messages are
  * handed to {@link Market} on the game thread.
  */
 public final class MarketRelay {
@@ -108,7 +108,7 @@ public final class MarketRelay {
 					if ((header[0] >> 4) != 2 || ack.length < 2 || ack[1] != 0) throw new IOException("MQTT connect refused");
 					socket = s;
 					o.write(subscribePacket(ROOT + "o/+/+", ROOT + "d/+/+", ROOT + "v/+/+", ROOT + "p/+",
-							ROOT + "g/#", ROOT + "m/" + id + "/+", ROOT + "t/" + id));
+							ROOT + "m/" + id + "/+", ROOT + "t/" + id));
 					o.flush();
 					out = o;
 					connected = true;

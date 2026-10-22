@@ -1,7 +1,8 @@
 package dev.spawnermarket.gui;
 
 import dev.spawnermarket.Market;
-import dev.spawnermarket.Market.ChatMsg;
+import dev.spawnermarket.MarketConfig.Msg;
+import dev.spawnermarket.MarketConfig.Trade;
 import dev.spawnermarket.Market.Deal;
 import dev.spawnermarket.Market.Offer;
 import dev.spawnermarket.Market.PriceStats;
@@ -24,7 +25,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * The liquid glass market: chats on the left, spawner trades (offers, deals, prices) in the
+ * The liquid glass market: trade chats on the left, spawner trades (offers, deals, prices) in the
  * middle, vouches of the selected player on the right.
  */
 public class MarketScreen extends Screen {
@@ -62,7 +63,7 @@ public class MarketScreen extends Screen {
 	/** A clickable area recorded while drawing; clicks are matched against the last frame's list. */
 	private record Hit(int x, int y, int w, int h, Runnable action) {}
 
-	private enum Mode { MARKET, CREATE, DEAL }
+	private enum Mode { MARKET, CREATE }
 
 	private final Market market;
 	private final List<Hit> hits = new ArrayList<>();
@@ -78,25 +79,24 @@ public class MarketScreen extends Screen {
 	private int listScroll;
 	private int createType;
 	private boolean createSell = true;
-	private Offer dealOffer;
 	private boolean drawerOpen, draggingOpacity;
 	private float drawerAnim;
 	private long lastFrame;
 
-	// Chat
-	private UUID dmWith;
+	// Trade chats
+	private String openTrade;
 	private int chatScroll;
 	private String chatCacheKey;
 	private List<ChatLine> chatLines = List.of();
 
-	private record ChatLine(FormattedCharSequence text, UUID from, String name, int nameWidth, boolean first) {}
+	private record ChatLine(FormattedCharSequence text) {}
 
 	// Vouches
 	private UUID target;
 	private String targetName = "";
 	private int vouchScroll;
 
-	private EditBox chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox, partnerBox;
+	private EditBox chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox;
 
 	public MarketScreen(Market market) {
 		super(Component.literal("Spawner Market"));
@@ -124,7 +124,6 @@ public class MarketScreen extends Screen {
 		amountBox = box(amountBox, 6, "z.B. 16");
 		priceBox = box(priceBox, 14, "z.B. 250k");
 		noteBox = box(noteBox, 60, "z.B. nur heute, Ort…");
-		partnerBox = box(partnerBox, 16, "Name");
 	}
 
 	private EditBox box(EditBox old, int maxLength, String hint) {
@@ -177,7 +176,7 @@ public class MarketScreen extends Screen {
 		if (Math.abs(drawerAnim - (drawerOpen ? 1 : 0)) < 0.002f) drawerAnim = drawerOpen ? 1 : 0;
 		layout();
 		hits.clear();
-		for (EditBox b : List.of(chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox, partnerBox)) b.visible = false;
+		for (EditBox b : List.of(chatBox, searchBox, vouchBox, amountBox, priceBox, noteBox)) b.visible = false;
 
 		panel(g, lx, py, sw, H);
 		renderChat(g, mx, my);
@@ -224,11 +223,8 @@ public class MarketScreen extends Screen {
 		Glass.roundRect(g, px + PW - 27, py + 15, 12, 2, 1, hc ? ACCENT : TEXT_FAINT);
 		hit(px + PW - 28, py + 9, 16, 14, this::onClose);
 
-		switch (mode) {
-			case CREATE -> renderCreate(g, mx, my);
-			case DEAL -> renderDealForm(g, mx, my);
-			default -> renderMarketTabs(g, mx, my);
-		}
+		if (mode == Mode.CREATE) renderCreate(g, mx, my);
+		else renderMarketTabs(g, mx, my);
 	}
 
 	private void renderMarketTabs(GuiGraphics g, int mx, int my) {
@@ -288,7 +284,7 @@ public class MarketScreen extends Screen {
 			centered(g, "+ Angebot erstellen", px + PW / 2, by + 6, WHITE);
 			hit(px + 12, by, PW - 24, 20, this::openCreate);
 		} else {
-			centered(g, tab == 1 ? "Deals trägt der Anbieter mit ✓ ein" : "Ø aus Deals der letzten 30 Tage",
+			centered(g, tab == 1 ? "Deals entstehen durch einen Vouch" : "Ø aus Deals der letzten 30 Tage",
 					px + PW / 2, by + 6, TEXT_FAINT);
 		}
 	}
@@ -331,7 +327,7 @@ public class MarketScreen extends Screen {
 			boolean hov = hover(mx, my, x, y, w, ROW_H) && my < bottom;
 			Glass.glass(g, x, y, w, ROW_H, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
 			Spawners.Type t = Spawners.get(o.type());
-			if (t != null) g.renderItem(t.stack(), x + 5, y + 5);
+			if (t != null) t.draw(g, x + 3, y + 3, 20);
 			String name = t == null ? o.type() : t.name();
 			g.drawString(font, clip(o.amount() + "× " + name, w - 96), x + 26, y + 4, TEXT, false);
 			boolean online = market.online(o.owner());
@@ -343,13 +339,12 @@ public class MarketScreen extends Screen {
 
 			int rx = x + w - 6;
 			if (hov) {
-				// Actions: mine → deal / delete, others → chat / TPA.
+				// Actions: mine → delete, others → trade chat / TPA.
 				if (o.owner().equals(me)) {
-					rx -= smallButton(g, mx, my, rx, y + 6, "✕", RED, top, bottom, () -> market.removeOffer(o)) + 3;
-					smallButton(g, mx, my, rx, y + 6, "✓ Deal", ACCENT, top, bottom, () -> openDeal(o));
+					smallButton(g, mx, my, rx, y + 6, "✕", RED, top, bottom, () -> market.removeOffer(o));
 				} else {
 					rx -= smallButton(g, mx, my, rx, y + 6, "TPA", ACCENT, top, bottom, () -> market.tpa(o.owner(), o.name())) + 3;
-					smallButton(g, mx, my, rx, y + 6, "Chat", ACCENT, top, bottom, () -> openDm(o.owner(), o.name()));
+					smallButton(g, mx, my, rx, y + 6, "Handeln", ACCENT, top, bottom, () -> startTrade(o));
 				}
 			} else {
 				String price = "je " + Spawners.format(o.price());
@@ -376,14 +371,14 @@ public class MarketScreen extends Screen {
 			boolean hov = hover(mx, my, x, y, w, ROW_H) && my < bottom;
 			Glass.glass(g, x, y, w, ROW_H, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
 			Spawners.Type t = Spawners.get(d.type());
-			if (t != null) g.renderItem(t.stack(), x + 5, y + 5);
+			if (t != null) t.draw(g, x + 3, y + 3, 20);
 			g.drawString(font, clip(d.amount() + "× " + (t == null ? d.type() : t.name()), w - 80), x + 26, y + 4, TEXT, false);
-			g.drawString(font, clip(d.seller() + " → " + d.buyer(), w - 80), x + 26, y + 15, TEXT_SOFT, false);
+			g.drawString(font, clip(d.sellerName() + " → " + d.buyerName(), w - 80), x + 26, y + 15, TEXT_SOFT, false);
 			String price = "je " + Spawners.format(d.price());
 			g.drawString(font, price, x + w - 6 - font.width(price), y + 4, ACCENT, false);
 			String ago = Spawners.ago(d.ts());
 			g.drawString(font, ago, x + w - 6 - font.width(ago), y + 15, TEXT_FAINT, false);
-			hitClipped(x, y, w, ROW_H, top, bottom, () -> selectTarget(d.owner(), d.name()));
+			hitClipped(x, y, w, ROW_H, top, bottom, () -> selectTarget(d.seller(), d.sellerName()));
 		}
 		g.disableScissor();
 		scrollbar(g, top, bottom, list.size(), visible);
@@ -402,7 +397,7 @@ public class MarketScreen extends Screen {
 			int x = px + 8, w = PW - 18, y = top + i * ROW_STEP;
 			boolean hov = hover(mx, my, x, y, w, ROW_H) && my < bottom;
 			Glass.glass(g, x, y, w, ROW_H, 8, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
-			g.renderItem(p.type().stack(), x + 5, y + 5);
+			p.type().draw(g, x + 3, y + 3, 20);
 			g.drawString(font, p.type().name() + "-Spawner", x + 26, y + 4, TEXT, false);
 			g.drawString(font, p.dealCount() + (p.dealCount() == 1 ? " Deal" : " Deals") + " · "
 					+ p.offerCount() + (p.offerCount() == 1 ? " Angebot" : " Angebote"), x + 26, y + 15, TEXT_SOFT, false);
@@ -441,16 +436,19 @@ public class MarketScreen extends Screen {
 		Spawners.Type type = Spawners.ALL[createType];
 		g.drawString(font, "Spawner: ", px + 14, py + 54, TEXT_SOFT, false);
 		g.drawString(font, type.name(), px + 14 + font.width("Spawner: "), py + 54, TEXT, false);
-		int cols = 9, cell = 22, gx = px + (PW - cols * cell) / 2, gy = py + 66;
-		for (int i = 0; i < Spawners.ALL.length; i++) {
-			int cx = gx + (i % cols) * cell, cy = gy + (i / cols) * cell;
-			boolean sel = i == createType, hov = hover(mx, my, cx, cy, cell - 2, cell - 2);
-			if (sel) Glass.roundRect(g, cx, cy, cell - 2, cell - 2, 6, ACCENT_TOP, ACCENT_BOTTOM);
-			else Glass.roundRect(g, cx, cy, cell - 2, cell - 2, 6, hov ? 0x80FFFFFF : 0x40FFFFFF, hov ? 0x60FFFFFF : 0x20FFFFFF);
-			Glass.roundOutline(g, cx, cy, cell - 2, cell - 2, 6, 0x90FFFFFF);
-			g.renderItem(Spawners.ALL[i].stack(), cx + 2, cy + 2);
+		// One cell per spawner model, the name below it.
+		int n = Spawners.ALL.length, cell = (PW - 20) / n, gx = px + (PW - n * cell) / 2, gy = py + 66, ch = 42;
+		for (int i = 0; i < n; i++) {
+			int cx = gx + i * cell, cw = cell - 2;
+			boolean sel = i == createType, hov = hover(mx, my, cx, gy, cw, ch);
+			if (sel) Glass.roundRect(g, cx, gy, cw, ch, 6, ACCENT_TOP, ACCENT_BOTTOM);
+			else Glass.roundRect(g, cx, gy, cw, ch, 6, hov ? 0x80FFFFFF : 0x40FFFFFF, hov ? 0x60FFFFFF : 0x20FFFFFF);
+			Glass.roundOutline(g, cx, gy, cw, ch, 6, 0x90FFFFFF);
+			int is = Math.min(24, cw - 4);
+			Spawners.ALL[i].draw(g, cx + (cw - is) / 2, gy + 3, is);
+			smallCentered(g, Spawners.ALL[i].name(), cx + cw / 2, gy + 31, sel ? WHITE : TEXT_SOFT, 0.7f);
 			int idx = i;
-			hit(cx, cy, cell - 2, cell - 2, () -> createType = idx);
+			hit(cx, gy, cw, ch, () -> createType = idx);
 		}
 
 		int half = (PW - 24 - 8) / 2;
@@ -498,56 +496,6 @@ public class MarketScreen extends Screen {
 		listScroll = 0;
 	}
 
-	// ---------------------------------------------------------------- deal form
-
-	private void openDeal(Offer o) {
-		dealOffer = o;
-		mode = Mode.DEAL;
-		partnerBox.setValue("");
-		amountBox.setValue(Integer.toString(o.amount()));
-		priceBox.setValue(Spawners.format(o.price()));
-		setFocused(partnerBox);
-	}
-
-	private void renderDealForm(GuiGraphics g, int mx, int my) {
-		Offer o = dealOffer;
-		Spawners.Type t = Spawners.get(o.type());
-		g.drawString(font, "Deal eintragen", px + 14, py + 32, TEXT, false);
-		Glass.glass(g, px + 12, py + 44, PW - 24, ROW_H, 8, 0x58FFFFFF, 0x38FFFFFF);
-		if (t != null) g.renderItem(t.stack(), px + 17, py + 49);
-		g.drawString(font, o.amount() + "× " + (t == null ? o.type() : t.name()) + " · je " + Spawners.format(o.price()), px + 38, py + 48, TEXT, false);
-		g.drawString(font, o.sell() ? "Du verkaufst" : "Du kaufst", px + 38, py + 59, TEXT_SOFT, false);
-
-		g.drawString(font, o.sell() ? "Käufer (Name)" : "Verkäufer (Name)", px + 14, py + 80, TEXT_SOFT, false);
-		field(g, partnerBox, px + 12, py + 90, PW - 24);
-		int half = (PW - 24 - 8) / 2;
-		g.drawString(font, "Anzahl", px + 14, py + 114, TEXT_SOFT, false);
-		g.drawString(font, "Preis pro Stück", px + 12 + half + 10, py + 114, TEXT_SOFT, false);
-		field(g, amountBox, px + 12, py + 124, half);
-		field(g, priceBox, px + 12 + half + 8, py + 124, half);
-		g.drawString(font, "Der Deal zählt für die Spawner-Preise.", px + 14, py + 152, TEXT_FAINT, false);
-		g.drawString(font, "Der Rest des Angebots bleibt online.", px + 14, py + 163, TEXT_FAINT, false);
-		g.drawString(font, "Danach kannst du rechts vouchen.", px + 14, py + 174, TEXT_FAINT, false);
-		formButtons(g, mx, my, "Eintragen", this::submitDeal);
-	}
-
-	private void submitDeal() {
-		String partner = partnerBox.getValue().trim();
-		String err = market.recordDeal(dealOffer, partner, parseInt(amountBox.getValue()), Spawners.parse(priceBox.getValue()));
-		if (err != null) {
-			market.say(err);
-			return;
-		}
-		market.say("Deal eingetragen");
-		UUID u = market.uuidByName(partner);
-		if (u != null) selectTarget(u, partner);
-		amountBox.setValue("");
-		priceBox.setValue("");
-		backToMarket();
-		tab = 1;
-		listScroll = 0;
-	}
-
 	private void formButtons(GuiGraphics g, int mx, int my, String confirm, Runnable action) {
 		int by = py + H - 28, cw = 80;
 		boolean hc = hover(mx, my, px + 12, by, cw, 20);
@@ -563,7 +511,6 @@ public class MarketScreen extends Screen {
 
 	private void backToMarket() {
 		mode = Mode.MARKET;
-		dealOffer = null;
 		setFocused(null);
 	}
 
@@ -638,35 +585,27 @@ public class MarketScreen extends Screen {
 		hit(dx + 8, y - 2, dw - 16, 18, action);
 	}
 
-	// ================================================================ left: chats
+	// ================================================================ left: trade chats
 
-	private String chatKey() {
-		return switch (market.config().chatTab) {
-			case 1 -> Market.serverChannel(Market.server());
-			case 2 -> dmWith == null ? "" : "dm:" + dmWith;
-			default -> Market.GLOBAL;
-		};
+	private Trade currentTrade() {
+		Trade t = market.trade(openTrade);
+		if (t == null) openTrade = null;
+		return t;
 	}
 
 	private void renderChat(GuiGraphics g, int mx, int my) {
-		int chatTab = market.config().chatTab;
-		market.setViewing(chatKey());
-		g.drawString(font, "Chats", lx + 14, py + 12, TEXT, false);
-		String sv = Market.server();
-		if (!sv.isEmpty() && chatTab == 1) {
-			String s = clip(sv, sw - 60);
-			g.drawString(font, s, lx + sw - 14 - font.width(s), py + 12, TEXT_FAINT, false);
+		Trade trade = currentTrade();
+		market.setViewing(openTrade);
+		g.drawString(font, "Trade-Chats", lx + 14, py + 12, TEXT, false);
+		int unread = market.unreadTrades();
+		if (unread > 0) {
+			String u = unread > 99 ? "99+" : Integer.toString(unread);
+			int w = Math.max(12, font.width(u) + 6);
+			Glass.roundRect(g, lx + sw - 14 - w, py + 10, w, 12, 6, ACCENT_TOP, ACCENT_BOTTOM);
+			centered(g, u, lx + sw - 14 - w / 2, py + 12, WHITE);
 		}
-		int ug = market.unread(Market.GLOBAL), us = sv.isEmpty() ? 0 : market.unread(Market.serverChannel(sv)), ud = market.unreadDms();
-		segmented(g, mx, my, lx + 12, py + 28, sw - 24, new String[] {
-				ug > 0 ? "Global·" + ug : "Global", us > 0 ? "Server·" + us : "Server", ud > 0 ? "Privat·" + ud : "Privat" },
-				chatTab, i -> {
-					market.config().chatTab = i;
-					market.config().save();
-					chatScroll = 0;
-				});
 
-		int top = py + 50, bottom = py + H - 34;
+		int top = py + 28, bottom = py + H - 34;
 		// Incoming TPA requests on top.
 		for (TpaRequest r : List.copyOf(market.tpaRequests())) {
 			int x = lx + 8, w = sw - 16;
@@ -681,56 +620,49 @@ public class MarketScreen extends Screen {
 			top += 26;
 		}
 
-		if (chatTab == 2 && dmWith == null) {
-			renderConversations(g, mx, my, top, py + H - 8);
+		if (trade == null) {
+			renderTradeList(g, mx, my, top, py + H - 8);
 			return;
 		}
-		if (chatTab == 2) {
-			// Conversation header: back, head, name, TPA.
-			UUID with = dmWith;
-			String name = market.name(with);
-			boolean hb = hover(mx, my, lx + 8, top + 1, 14, 16);
-			g.drawString(font, "‹", lx + 12, top + 5, hb ? ACCENT : TEXT_SOFT, false);
-			hit(lx + 8, top + 1, 14, 16, () -> {
-				dmWith = null;
-				chatScroll = 0;
-			});
-			head(g, with, name, lx + 22, top + 3, 12);
-			Glass.circle(g, lx + 37, top + 7, 4, market.online(with) ? GREEN : 0x80A09CB8);
-			g.drawString(font, clip(name, sw - 90), lx + 44, top + 5, TEXT, false);
-			hit(lx + 22, top + 1, sw - 80, 16, () -> selectTarget(with, name));
-			smallButton(g, mx, my, lx + sw - 10, top + 2, "TPA", ACCENT, 0, height, () -> market.tpa(with, name));
-			top += 20;
-		}
 
-		List<ChatMsg> msgs = chatTab == 2 ? market.dm(dmWith) : chatTab == 1 ? market.channel(Market.serverChannel(sv)) : market.channel(Market.GLOBAL);
-		int textW = sw - 24;
-		buildChatLines(chatKey(), msgs, textW);
+		// Header: back, partner, TPA, end; below it what the trade is about.
+		String me = Market.me().toString();
+		UUID with = UUID.fromString(trade.other(me));
+		String name = trade.otherName(me);
+		boolean hb = hover(mx, my, lx + 8, top + 1, 14, 16);
+		g.drawString(font, "‹", lx + 12, top + 5, hb ? ACCENT : TEXT_SOFT, false);
+		hit(lx + 8, top + 1, 14, 16, () -> openTrade = null);
+		head(g, with, name, lx + 22, top + 3, 12);
+		Glass.circle(g, lx + 37, top + 7, 4, market.online(with) ? GREEN : 0x80A09CB8);
+		g.drawString(font, clip(name, sw - 112), lx + 44, top + 5, TEXT, false);
+		hit(lx + 22, top + 1, sw - 112, 16, () -> selectTarget(with, name));
+		int rx = lx + sw - 10;
+		rx -= smallButton(g, mx, my, rx, top + 2, "✕", RED, 0, height, () -> {
+			market.cancelTrade(trade);
+			openTrade = null;
+			market.say("Trade beendet");
+		}) + 3;
+		smallButton(g, mx, my, rx, top + 2, "TPA", ACCENT, 0, height, () -> market.tpa(with, name));
+		top += 19;
+		Spawners.Type type = Spawners.get(trade.type);
+		Glass.glass(g, lx + 8, top, sw - 16, 22, 8, 0x58FFFFFF, 0x38FFFFFF);
+		if (type != null) type.draw(g, lx + 11, top + 2, 18);
+		String what = trade.amount + "× " + (type == null ? trade.type : type.name()) + " · je " + Spawners.format(trade.price);
+		g.drawString(font, clip(what, sw - 42), lx + 32, top + 3, TEXT, false);
+		String role = me.equals(trade.owner) == trade.sell ? "Du verkaufst" : "Du kaufst";
+		g.drawString(font, role, lx + 32, top + 12, TEXT_SOFT, false);
+		top += 26;
+
+		List<Msg> msgs = trade.messages;
+		buildChatLines(trade.id, msgs, sw - 24);
 		int lineH = 10, visible = Math.max(1, (bottom - top) / lineH);
 		int total = chatLines.size();
 		chatScroll = Math.max(0, Math.min(chatScroll, Math.max(0, total - visible)));
-		if (msgs.isEmpty()) {
-			String l1, l2;
-			if (!market.connected()) { l1 = "Verbinde mit dem"; l2 = "Relay…"; }
-			else if (chatTab == 1 && sv.isEmpty()) { l1 = "Du bist auf keinem"; l2 = "Server"; }
-			else if (chatTab == 2) { l1 = "Noch keine Nachrichten"; l2 = "Schreib was!"; }
-			else { l1 = "Noch ist es still hier"; l2 = "Sag Hallo!"; }
-			centered(g, l1, lx + sw / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
-			centered(g, l2, lx + sw / 2, (top + bottom) / 2, TEXT_SOFT);
-		}
 		g.enableScissor(lx + 4, top, lx + sw - 4, bottom);
 		int first = Math.max(0, total - visible - chatScroll);
 		int last = total - chatScroll;
 		int y = bottom - (last - first) * lineH;
-		for (int i = first; i < last; i++, y += lineH) {
-			ChatLine l = chatLines.get(i);
-			g.drawString(font, l.text, lx + 12, y + 1, TEXT, false);
-			if (l.first && l.from != null && !l.from.equals(Market.me())) {
-				ChatLine line = l;
-				// Name: open a private chat and show their vouches.
-				hitClipped(lx + 12, y, l.nameWidth, lineH, top, bottom, () -> openDm(line.from, line.name));
-			}
-		}
+		for (int i = first; i < last; i++, y += lineH) g.drawString(font, chatLines.get(i).text, lx + 12, y + 1, TEXT, false);
 		g.disableScissor();
 
 		// Input.
@@ -739,80 +671,86 @@ public class MarketScreen extends Screen {
 		Glass.roundRect(g, lx + 10, iy, sw - 20, 18, 9, PILL_TOP, PILL_BOTTOM);
 		Glass.roundOutline(g, lx + 10, iy, sw - 20, 18, 9, chatBox.isFocused() ? ACCENT_TOP : 0xC0FFFFFF);
 		place(chatBox, lx + 10, iy, sw - 20);
-		chatBox.setHint(Component.literal(chatTab == 2 ? "An " + market.name(dmWith) + "…" : chatTab == 1 ? "An den Server…" : "An alle…").withColor(0xFF8E8AA0));
+		chatBox.setHint(Component.literal("An " + name + "…").withColor(0xFF8E8AA0));
 		hit(lx + 10, iy, sw - 20, 18, () -> setFocused(chatBox));
 	}
 
-	private void buildChatLines(String key, List<ChatMsg> msgs, int width) {
-		String cacheKey = key + "|" + msgs.size() + "|" + (msgs.isEmpty() ? 0 : msgs.get(msgs.size() - 1).ts()) + "|" + width + "|" + ACCENT;
+	private void buildChatLines(String key, List<Msg> msgs, int width) {
+		String cacheKey = key + "|" + msgs.size() + "|" + (msgs.isEmpty() ? 0 : msgs.get(msgs.size() - 1).ts) + "|" + width + "|" + ACCENT;
 		if (cacheKey.equals(chatCacheKey)) return;
 		chatCacheKey = cacheKey;
+		String me = Market.me().toString();
 		List<ChatLine> lines = new ArrayList<>();
-		for (ChatMsg m : msgs) {
-			int nameColor = m.mine() ? TEAL_BOTTOM : ACCENT_TOP;
-			Component c = Component.literal(m.name()).withColor(nameColor)
-					.append(Component.literal(": " + m.text()).withColor(TEXT));
-			List<FormattedCharSequence> split = font.split(c, width);
-			for (int i = 0; i < split.size(); i++) {
-				lines.add(new ChatLine(split.get(i), m.from(), m.name(), font.width(m.name()), i == 0));
+		for (Msg m : msgs) {
+			Component c;
+			if (m.from.isEmpty()) {
+				// A note from the mod: faint, without a name.
+				c = Component.literal(m.text).withColor(TEXT_FAINT);
+			} else {
+				int nameColor = me.equals(m.from) ? TEAL_BOTTOM : ACCENT_TOP;
+				c = Component.literal(m.name).withColor(nameColor).append(Component.literal(": " + m.text).withColor(TEXT));
 			}
+			for (FormattedCharSequence line : font.split(c, width)) lines.add(new ChatLine(line));
 		}
 		chatLines = lines;
 	}
 
-	private void renderConversations(GuiGraphics g, int mx, int my, int top, int bottom) {
-		List<UUID> list = market.conversations();
+	private void renderTradeList(GuiGraphics g, int mx, int my, int top, int bottom) {
+		List<Trade> list = market.trades();
 		if (list.isEmpty()) {
-			centered(g, "Keine Privatchats", lx + sw / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
-			centered(g, "Klick auf einen Namen", lx + sw / 2, (top + bottom) / 2, TEXT_SOFT);
-			centered(g, "oder „Chat“ im Markt", lx + sw / 2, (top + bottom) / 2 + 10, TEXT_SOFT);
+			centered(g, "Keine offenen Trades", lx + sw / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
+			centered(g, "„Handeln“ an einem", lx + sw / 2, (top + bottom) / 2, TEXT_SOFT);
+			centered(g, "Angebot startet einen", lx + sw / 2, (top + bottom) / 2 + 10, TEXT_SOFT);
 			return;
 		}
+		String me = Market.me().toString();
 		int step = 30;
 		int visible = Math.max(1, (bottom - top) / step);
 		chatScroll = Math.max(0, Math.min(chatScroll, Math.max(0, list.size() - visible)));
 		g.enableScissor(lx + 4, top, lx + sw - 4, bottom);
 		for (int i = 0; i < visible + 1 && chatScroll + i < list.size(); i++) {
-			UUID u = list.get(chatScroll + i);
-			String name = market.name(u);
+			Trade t = list.get(chatScroll + i);
+			UUID u = UUID.fromString(t.other(me));
+			String name = t.otherName(me);
 			int x = lx + 8, w = sw - 16, y = top + 2 + i * step;
 			boolean hov = hover(mx, my, x, y, w, 26);
 			Glass.glass(g, x, y, w, 26, 9, hov ? 0x90FFFFFF : 0x58FFFFFF, hov ? 0x70FFFFFF : 0x38FFFFFF);
-			head(g, u, name, x + 5, y + 7, 12);
-			g.drawString(font, clip(name, w - 40), x + 22, y + 4, TEXT, false);
-			List<ChatMsg> msgs = market.dm(u);
-			String lastMsg = msgs.isEmpty() ? "" : (msgs.get(msgs.size() - 1).mine() ? "Du: " : "") + msgs.get(msgs.size() - 1).text();
-			g.drawString(font, clip(lastMsg, w - 30), x + 22, y + 15, TEXT_SOFT, false);
-			int unread = market.unread("dm:" + u);
-			if (unread > 0) {
+			Spawners.Type type = Spawners.get(t.type);
+			if (type != null) type.draw(g, x + 3, y + 3, 20);
+			g.drawString(font, clip(name, w - 44), x + 26, y + 4, TEXT, false);
+			Msg lastMsg = t.messages.isEmpty() ? null : t.messages.get(t.messages.size() - 1);
+			String sub = lastMsg == null || lastMsg.from.isEmpty()
+					? t.amount + "× " + (type == null ? t.type : type.name()) + " · je " + Spawners.format(t.price)
+					: (me.equals(lastMsg.from) ? "Du: " : "") + lastMsg.text;
+			g.drawString(font, clip(sub, w - 32), x + 26, y + 15, TEXT_SOFT, false);
+			if (t.unread > 0) {
 				Glass.circle(g, x + w - 14, y + 4, 10, ACCENT);
-				centered(g, unread > 9 ? "+" : Integer.toString(unread), x + w - 9, y + 5, WHITE);
+				centered(g, t.unread > 9 ? "+" : Integer.toString(t.unread), x + w - 9, y + 5, WHITE);
 			} else {
 				Glass.circle(g, x + w - 10, y + 6, 4, market.online(u) ? GREEN : 0x80A09CB8);
 			}
-			hitClipped(x, y, w, 26, top, bottom, () -> openDm(u, name));
+			hitClipped(x, y, w, 26, top, bottom, () -> openTrade(t));
 		}
 		g.disableScissor();
 	}
 
-	private void openDm(UUID with, String name) {
-		if (with.equals(Market.me())) return;
-		market.openDm(with);
-		market.config().chatTab = 2;
-		market.config().save();
-		dmWith = with;
+	private void startTrade(Offer o) {
+		Trade t = market.startTrade(o);
+		if (t != null) openTrade(t);
+	}
+
+	private void openTrade(Trade t) {
+		openTrade = t.id;
 		chatScroll = 0;
-		selectTarget(with, name);
+		String me = Market.me().toString();
+		selectTarget(UUID.fromString(t.other(me)), t.otherName(me));
 		setFocused(chatBox);
 	}
 
 	private void sendChat() {
-		String text = chatBox.getValue();
-		if (text.isBlank()) return;
-		int chatTab = market.config().chatTab;
-		String err;
-		if (chatTab == 2) err = dmWith == null ? "Wähle zuerst einen Chat" : market.sendDm(dmWith, text);
-		else err = market.sendChat(chatTab == 1 ? Market.serverChannel(Market.server()) : Market.GLOBAL, text);
+		Trade t = currentTrade();
+		if (t == null || chatBox.getValue().isBlank()) return;
+		String err = market.sendTradeMessage(t, chatBox.getValue());
 		if (err != null) market.say(err);
 		else {
 			chatBox.setValue("");
@@ -912,6 +850,8 @@ public class MarketScreen extends Screen {
 		Glass.roundRect(g, vx + 10, iy, sw - 20, 18, 9, PILL_TOP, PILL_BOTTOM);
 		Glass.roundOutline(g, vx + 10, iy, sw - 20, 18, 9, vouchBox.isFocused() ? ACCENT_TOP : 0xC0FFFFFF);
 		place(vouchBox, vx + 10, iy, sw - 20);
+		vouchBox.setHint(Component.literal(market.tradeWith(target) != null ? "Vouch schließt den Deal ab…" : "Wie lief der Handel?")
+				.withColor(0xFF8E8AA0));
 		hit(vx + 10, iy, sw - 20, 18, () -> setFocused(vouchBox));
 		Vouch mine = market.myVouchFor(target);
 		int bw = (sw - 24 - 6) / 2, by = py + H - 28;
@@ -969,12 +909,16 @@ public class MarketScreen extends Screen {
 
 	private void submitVouch(boolean positive) {
 		if (target == null) return;
-		String err = market.vouch(target, targetName, positive, vouchBox.getValue());
+		Trade trade = currentTrade();
+		boolean closesTrade = market.tradeWith(target) != null;
+		String err = market.vouch(target, targetName, positive, vouchBox.getValue(), trade);
 		if (err != null) {
 			market.say(err);
 			return;
 		}
-		market.say("Vouch für " + targetName + " gespeichert");
+		// With an open trade, the market already says whether the deal was recorded.
+		if (!closesTrade) market.say("Vouch für " + targetName + " gespeichert");
+		if (trade != null && market.trade(trade.id) == null) openTrade = null;
 		vouchBox.setValue("");
 		setFocused(null);
 	}
@@ -1117,7 +1061,7 @@ public class MarketScreen extends Screen {
 		int step = (int) Math.signum(syAmount);
 		if (hover((int) mx, (int) my, lx, py, sw, H)) {
 			// Chat scrolls in lines (up = older), the conversation list in rows.
-			chatScroll += market.config().chatTab == 2 && dmWith == null ? -step : step * 3;
+			chatScroll += currentTrade() == null ? -step : step * 3;
 			return true;
 		}
 		if (hover((int) mx, (int) my, px, py, PW, H)) {
@@ -1143,7 +1087,6 @@ public class MarketScreen extends Screen {
 		if (e.isConfirmation()) {
 			if (getFocused() == chatBox) { sendChat(); return true; }
 			if (getFocused() == searchBox) { searchPlayer(); return true; }
-			if (getFocused() == partnerBox || (mode == Mode.DEAL && getFocused() instanceof EditBox)) { submitDeal(); return true; }
 			if (mode == Mode.CREATE && getFocused() instanceof EditBox) { submitCreate(); return true; }
 		}
 		return super.keyPressed(e);
@@ -1165,6 +1108,14 @@ public class MarketScreen extends Screen {
 
 	private void centered(GuiGraphics g, String text, int cx, int y, int color) {
 		g.drawString(font, text, cx - font.width(text) / 2, y, color, false);
+	}
+
+	private void smallCentered(GuiGraphics g, String text, int cx, int y, int color, float scale) {
+		g.pose().pushMatrix();
+		g.pose().translate(cx - font.width(text) * scale / 2f, y);
+		g.pose().scale(scale, scale);
+		g.drawString(font, text, 0, 0, color, false);
+		g.pose().popMatrix();
 	}
 
 	private String clip(String text, int maxWidth) {

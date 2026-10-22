@@ -7,30 +7,39 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.0.0.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.1.0.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
 
-| Links: **Chats** | Mitte: **Spawnerhandel** | Rechts: **Vouches** |
+| Links: **Trade-Chats** | Mitte: **Spawnerhandel** | Rechts: **Vouches** |
 |---|---|---|
-| Global, Server, Privat | Markt · Deals · Preise | Bewertungen des gewählten Spielers |
+| ein Chat pro Trade | Markt · Deals · Preise | Bewertungen des gewählten Spielers |
 
 ### Mitte – Spawnerhandel
 - **Markt:** alle Angebote (Verkauf/Ankauf), filterbar nach Seite, Spawner-Typ und Server
   („Mein Server“ / „Alle Server“). Grüner Punkt = Anbieter ist online.
-  - Fremdes Angebot (Maus drüber): **Chat** öffnet einen Privatchat, **TPA** schickt `/tpa <Name>`.
-  - Eigenes Angebot: **✓ Deal** trägt einen abgeschlossenen Handel ein, **✕** löscht das Angebot.
-- **+ Angebot erstellen:** Verkaufen/Kaufen, Spawner-Typ, Anzahl, Preis pro Stück
+  - Fremdes Angebot (Maus drüber): **Handeln** öffnet einen Trade-Chat, **TPA** schickt `/tpa <Name>`.
+  - Eigenes Angebot: **✕** löscht das Angebot.
+- **+ Angebot erstellen:** Verkaufen/Kaufen, Spawner (Kuh, Golem, Spinne, Piglin, Skelett,
+  Creeper, Lohe), Anzahl, Preis pro Stück
   (`250k`, `1,5m`, `2.000.000`), Notiz. Zeigt den aktuellen Marktpreis zur Orientierung.
-- **Deals:** abgeschlossene Handel der letzten 30 Tage (Verkäufer → Käufer, Preis).
+- **Deals:** abgeschlossene Handel der letzten 30 Tage (Verkäufer → Käufer, Preis). Deals kann
+  man nicht eintippen – sie entstehen nur durch einen Vouch im Trade (siehe unten).
 - **Preise:** pro Spawner-Typ Ø-Preis aus den Deals (nach Stückzahl gewichtet), günstigstes
   Verkaufsangebot und höchstes Ankaufsangebot. Klick zeigt die passenden Angebote.
 
-### Links – Chats
-- **Global:** alle Spieler mit der Mod, egal auf welchem Server.
-- **Server:** nur Spieler auf deinem aktuellen Server.
-- **Privat:** Privatchats. Klick auf einen Namen im Chat (oder „Chat“ am Angebot) öffnet einen.
+### Links – Trade-Chats
+- Jeder Trade hat seinen eigenen Chat: **Handeln** an einem Angebot öffnet ihn, beim Anbieter
+  taucht er automatisch auf. Oben steht, um welches Angebot es geht.
+- **Positiver Vouch** (rechts) an den Handelspartner **schließt den Deal ab**: Er wird
+  eingetragen, das Angebot verschwindet, und der Chat wird bei beiden gelöscht. Ein neuer
+  Deal bekommt einen neuen Chat.
+- **Negativer Vouch** oder **✕** beendet den Trade ohne Deal (Chat wird gelöscht).
+- **Namen laufen automatisch mit:** Die Namen im Deal kommen aus den Minecraft-Konten der beiden
+  Trade-Partner, nicht aus einem Textfeld. Ein Deal zählt erst, wenn **beide** Clients ihn
+  bestätigt haben; das passiert automatisch, sobald einer vouched und beide im Chat geschrieben
+  haben.
 - TPA-Anfragen von anderen Mod-Spielern erscheinen oben mit **Ja** (schickt `/tpaccept <Name>`).
 
 ### Rechts – Vouches
@@ -41,21 +50,24 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 - Ohne Auswahl: Rangliste der Top-Händler. Dein Kopf oben rechts zeigt deine eigenen Vouches.
 
 ### Zahnrad
-Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Privatnachricht/TPA), Deckkraft.
+Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA), Deckkraft.
 
 ## Einstellungen
 
 `config/spawner-market.json`:
 - `tpaCommand` / `tpaAcceptCommand`: falls dein Server andere Befehle hat (Standard `tpa` / `tpaccept`).
 - `published`: deine Angebote, Deals und Vouches; sie werden nach jedem Verbinden neu gesendet.
+- `trades`: deine offenen Trade-Chats.
 
 ## Wichtig zu wissen
 
 - Das Relay ist öffentlich und ohne Login. Die Mod prüft, dass jeder nur unter seiner eigenen UUID
-  schreibt, aber **jemand mit einer modifizierten Mod kann Angebote, Deals oder Vouches fälschen**.
+  schreibt, aber das Relay selbst kennt keine Konten: **Wer das Protokoll gezielt nachbaut, kann
+  Angebote, Vouches und (mit mehr Aufwand) auch Deals fälschen.** Mit der normalen Mod geht das
+  nicht. Wirklich fälschungssicher wäre es nur mit einem eigenen Server mit Login.
   Vouches und Preise sind ein Anhaltspunkt, kein Beweis – handle trotzdem vorsichtig.
-- Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage, Chatverlauf reicht 6 Stunden zurück
-  (pro Spieler die letzte Nachricht) plus alles, was ankommt, während du online bist.
+- Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage. Ist dein Partner offline, bekommt er
+  beim nächsten Start nur deine letzte Nachricht.
 - Preise sind in der Währung des jeweiligen Servers – darum filtert der Markt standardmäßig auf
   deinen Server.
 

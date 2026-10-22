@@ -1,40 +1,34 @@
 package dev.spawnermarket;
 
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 import java.util.Locale;
 
-/** Spawner types that can be traded, with their German name and an icon, plus price helpers. */
+/** Spawner types that can be traded, with their German name and spawner model, plus price helpers. */
 public final class Spawners {
 	private Spawners() {}
 
-	public record Type(String key, String name, Item icon) {
-		public ItemStack stack() {
-			return new ItemStack(icon);
+	public record Type(String key, String name, Identifier texture) {
+		/** Draws the spawner model in a {@code size}×{@code size} box. */
+		public void draw(GuiGraphics g, int x, int y, int size) {
+			g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, size, size, size, size);
 		}
 	}
 
+	private static Type type(String key, String name) {
+		return new Type(key, name, Identifier.fromNamespaceAndPath("spawnermarket", "textures/gui/spawner/" + key + ".png"));
+	}
+
 	public static final Type[] ALL = {
-			new Type("zombie", "Zombie", Items.ZOMBIE_SPAWN_EGG),
-			new Type("skeleton", "Skelett", Items.SKELETON_SPAWN_EGG),
-			new Type("spider", "Spinne", Items.SPIDER_SPAWN_EGG),
-			new Type("cave_spider", "Höhlenspinne", Items.CAVE_SPIDER_SPAWN_EGG),
-			new Type("creeper", "Creeper", Items.CREEPER_SPAWN_EGG),
-			new Type("blaze", "Blaze", Items.BLAZE_SPAWN_EGG),
-			new Type("iron_golem", "Eisengolem", Items.IRON_GOLEM_SPAWN_EGG),
-			new Type("pig", "Schwein", Items.PIG_SPAWN_EGG),
-			new Type("cow", "Kuh", Items.COW_SPAWN_EGG),
-			new Type("chicken", "Huhn", Items.CHICKEN_SPAWN_EGG),
-			new Type("sheep", "Schaf", Items.SHEEP_SPAWN_EGG),
-			new Type("slime", "Schleim", Items.SLIME_SPAWN_EGG),
-			new Type("magma_cube", "Magmawürfel", Items.MAGMA_CUBE_SPAWN_EGG),
-			new Type("enderman", "Enderman", Items.ENDERMAN_SPAWN_EGG),
-			new Type("witch", "Hexe", Items.WITCH_SPAWN_EGG),
-			new Type("zombified_piglin", "Zombie-Piglin", Items.ZOMBIFIED_PIGLIN_SPAWN_EGG),
-			new Type("silverfish", "Silberfisch", Items.SILVERFISH_SPAWN_EGG),
-			new Type("other", "Sonstige", Items.SPAWNER),
+			type("cow", "Kuh"),
+			type("iron_golem", "Golem"),
+			type("spider", "Spinne"),
+			type("zombified_piglin", "Piglin"),
+			type("skeleton", "Skelett"),
+			type("creeper", "Creeper"),
+			type("blaze", "Lohe"),
 	};
 
 	/** The type with this key, or null for unknown keys (they come from other players). */
