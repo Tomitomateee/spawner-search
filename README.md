@@ -50,7 +50,18 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 - Ohne Auswahl: Rangliste der Top-Händler. Dein Kopf oben rechts zeigt deine eigenen Vouches.
 
 ### Zahnrad
-Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA), Deckkraft.
+Farbthema, Black Mode, Benachrichtigungen an/aus, Deckkraft.
+
+### Benachrichtigungen
+Kleine Banner oben im Bild (mit Ton), wenn jemand ein **neues Angebot** aufmacht: Spawner, Anzahl,
+Preis pro Stück, Verkauf/Ankauf, von wem und wie der Preis zum Schnitt der Deals steht. Dazu
+neue Trades an deinen Angeboten, Trade-Nachrichten, bestätigte/beendete Trades und TPA-Anfragen.
+Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
+- **Angebote:** Verkauf/Ankauf, nur dein Server, nur gute Preise, nur bestimmte Spawner.
+- **Trades:** neue Trades, Nachrichten, Deal/Trade beendet, TPA, alle neuen Deals auf dem Markt.
+- **Anzeige:** Position (links/Mitte/rechts), Dauer, Ton, auch über anderen Menüs. **Test** zeigt Beispiele.
+
+Solange das Spawnerhandel-Menü offen ist, kommen keine Banner – es zeigt alles selbst.
 
 ## Einstellungen
 
@@ -68,6 +79,8 @@ Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA),
   Vouches und Preise sind ein Anhaltspunkt, kein Beweis – handle trotzdem vorsichtig.
 - Angebote verschwinden nach 7 Tagen, Deals zählen 30 Tage. Ist dein Partner offline, bekommt er
   beim nächsten Start nur deine letzte Nachricht.
+- Trade-Chats stehen in der Reihenfolge, in der die Nachrichten ankommen – die Uhren der Spieler
+  gehen nie genau gleich, nach Absenderzeit sortiert landeten Antworten sonst über der Frage.
 - Preise sind in der Währung des jeweiligen Servers – darum filtert der Markt standardmäßig auf
   deinen Server.
 
@@ -75,4 +88,11 @@ Farbthema, Black Mode, Benachrichtigungen (Toast + Ton bei Trade-Nachricht/TPA),
 
 ```
 gradlew build
+```
+
+Selbsttest im echten Spiel (ohne Relay, Ergebnis und Screenshots in `run-prod/`; die Welt muss
+unter `run-prod/saves` liegen):
+
+```
+gradlew prodClient -Pselftest -Pworld="New World"
 ```

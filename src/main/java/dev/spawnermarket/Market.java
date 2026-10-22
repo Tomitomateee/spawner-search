@@ -39,6 +39,8 @@ public final class Market implements MarketRelay.Handler {
 	private static final long OFFER_MAX_AGE = 7 * 86_400_000L, DEAL_MAX_AGE = 30 * 86_400_000L;
 	private static final long ONLINE_MS = 5 * 60_000L, TPA_MS = 120_000L;
 	private static final long HEARTBEAT_MS = 120_000L;
+	/** Offers and deals older than this are re-sends (after a reconnect), not news. */
+	private static final long FRESH_MS = 15 * 60_000L;
 	private static final int CHAT_KEEP = 150, CLOSED_KEEP = 300;
 
 	private final MarketConfig config;
@@ -56,11 +58,34 @@ public final class Market implements MarketRelay.Handler {
 	private String message;
 	private long messageAt, lastChatAt, lastHeartbeat;
 	private String lastServer = "";
-	/** Called for trade messages and TPA requests: (title, text, from). */
-	private Notifier notifier = (t, m, u) -> { };
+	/** Goes up with every chat message, so the GUI knows when to re-wrap the lines. */
+	private int chatVersion;
+	/** Called for new offers and deals, trade chats and TPA requests. */
+	private Notifier notifier = n -> { };
+
+	/**
+	 * Something worth a banner. {@code offer}, {@code deal} and {@code trade} are only set for the
+	 * kinds they belong to.
+	 */
+	public record Notice(Kind kind, UUID from, String name, String text, Offer offer, Deal deal, Trade trade) {
+		public enum Kind {
+			/** Someone put up a new offer. */
+			OFFER,
+			/** Seller and buyer both confirmed a deal (one I'm not part of). */
+			DEAL,
+			/** Someone opened a trade chat with me. */
+			TRADE_START,
+			TRADE_MESSAGE,
+			/** The other side vouched me positively: the deal is done. */
+			TRADE_DONE,
+			/** The other side ended the trade without a deal. */
+			TRADE_CLOSED,
+			TPA
+		}
+	}
 
 	public interface Notifier {
-		void notify(String title, String text, UUID from);
+		void notify(Notice n);
 	}
 
 	public Market(MarketConfig config) {
@@ -396,9 +421,18 @@ public final class Market implements MarketRelay.Handler {
 		if (now - lastChatAt < 500) return "Nicht so schnell";
 		lastChatAt = now;
 		sendTrade(t, "msg", text, false);
-		addMessage(t, new Msg(me().toString(), myName(), text, now));
-		config.save();
+		addSent(t, text, now);
 		return null;
+	}
+
+	/** Puts a message I sent at the end of the trade chat. */
+	public void addSent(Trade t, String text, long sent) {
+		addMessage(t, new Msg(me().toString(), myName(), text, arrivalTime(t), sent));
+		config.save();
+	}
+
+	public int chatVersion() {
+		return chatVersion;
 	}
 
 	/** Every trade message carries the offer, so the first one that arrives can open the chat. */
@@ -567,8 +601,8 @@ public final class Market implements MarketRelay.Handler {
 		String[] part = topic.split("/");
 		try {
 			switch (part[0]) {
-				case "o" -> onOffer(part, o);
-				case "d" -> onDeal(part, o);
+				case "o" -> onOffer(part, o, stored);
+				case "d" -> onDeal(part, o, stored);
 				case "v" -> onVouch(part, o);
 				case "p" -> onPresence(part, o, stored);
 				case "m" -> onTradeMessage(part, o, stored);
@@ -589,7 +623,7 @@ public final class Market implements MarketRelay.Handler {
 		return u;
 	}
 
-	private void onOffer(String[] part, JsonObject o) {
+	private void onOffer(String[] part, JsonObject o, boolean stored) {
 		if (part.length != 3) return;
 		String key = part[1] + "/" + part[2];
 		if (o == null) {
@@ -601,11 +635,22 @@ public final class Market implements MarketRelay.Handler {
 		int n = o.get("n").getAsInt();
 		long p = o.get("p").getAsLong();
 		if (type == null || n < 1 || n > 100_000 || p < 1 || p > Spawners.MAX_PRICE || !str(o, "id").equals(part[2])) return;
-		offers.put(key, new Offer(part[2], u, playerName(str(o, "nm")), clean(str(o, "sv"), 64), type.key(),
-				o.get("s").getAsBoolean(), n, p, clean(str(o, "no"), 60), Math.min(System.currentTimeMillis(), o.get("ts").getAsLong())));
+		long ts = o.get("ts").getAsLong();
+		Offer offer = new Offer(part[2], u, playerName(str(o, "nm")), clean(str(o, "sv"), 64), type.key(),
+				o.get("s").getAsBoolean(), n, p, clean(str(o, "no"), 60), Math.min(System.currentTimeMillis(), ts));
+		Offer before = offers.put(key, offer);
+		if (before == null && isNews(stored, u, ts)) notifier.notify(new Notice(Notice.Kind.OFFER, u, offer.name, "", offer, null, null));
 	}
 
-	private void onDeal(String[] part, JsonObject o) {
+	/**
+	 * Whether something live from someone else was just created. The broker hands out the stored
+	 * messages on connect and everyone re-sends theirs after a reconnect – that isn't news.
+	 */
+	private static boolean isNews(boolean stored, UUID author, long ts) {
+		return !stored && !author.equals(me()) && Math.abs(System.currentTimeMillis() - ts) < FRESH_MS;
+	}
+
+	private void onDeal(String[] part, JsonObject o, boolean stored) {
 		if (part.length != 3) return;
 		String key = part[2] + "/" + part[1];
 		if (o == null) {
@@ -624,8 +669,15 @@ public final class Market implements MarketRelay.Handler {
 		int n = o.get("n").getAsInt();
 		long p = o.get("p").getAsLong();
 		if (type == null || n < 1 || n > 100_000 || p < 1 || p > Spawners.MAX_PRICE) return;
-		dealRecords.put(key, new Deal(part[2], seller, sn, buyer, bn, clean(str(o, "sv"), 64), type.key(), n, p,
-				Math.min(System.currentTimeMillis(), o.get("ts").getAsLong())));
+		long ts = o.get("ts").getAsLong();
+		Deal d = new Deal(part[2], seller, sn, buyer, bn, clean(str(o, "sv"), 64), type.key(), n, p,
+				Math.min(System.currentTimeMillis(), ts));
+		Deal before = dealRecords.put(key, d);
+		// News once the second side confirms. Deals I'm part of come as TRADE_DONE instead.
+		Deal other = dealRecords.get(part[2] + "/" + (u.equals(seller) ? buyer : seller));
+		boolean confirmed = other != null && other.seller.equals(seller) && other.buyer.equals(buyer) && other.type.equals(d.type);
+		if (before == null && confirmed && isNews(stored, u, ts) && !seller.equals(me()) && !buyer.equals(me()))
+			notifier.notify(new Notice(Notice.Kind.DEAL, u, playerName(str(o, "nm")), "", null, d, null));
 	}
 
 	private void onVouch(String[] part, JsonObject o) {
@@ -678,8 +730,7 @@ public final class Market implements MarketRelay.Handler {
 			boolean deal = o.has("deal") && o.get("deal").getAsBoolean() && talked;
 			if (deal) publishDeal(t);
 			forgetTrade(t);
-			if (!stored || deal) notifier.notify(deal ? "Deal abgeschlossen" : "Trade beendet",
-					deal ? name + " hat den Deal bestätigt" : name + " hat den Trade beendet", u);
+			if (!stored || deal) notifier.notify(new Notice(deal ? Notice.Kind.TRADE_DONE : Notice.Kind.TRADE_CLOSED, u, name, "", null, null, t));
 			say(deal ? "Deal mit " + name + " abgeschlossen" : name + " hat den Trade beendet");
 			return;
 		}
@@ -708,21 +759,25 @@ public final class Market implements MarketRelay.Handler {
 			t.messages.add(new Msg("", "", name + " möchte handeln. Ein Vouch schließt den Deal ab.", t.created));
 			config.trades.put(id, t);
 			if (!id.equals(viewing)) t.unread++;
-			if (kind.equals("start")) notifier.notify("Neuer Trade", name + " · " + n + "× " + type.name(), u);
+			if (kind.equals("start")) notifier.notify(new Notice(Notice.Kind.TRADE_START, u, name, "", null, null, t));
 		} else if (!u.toString().equals(t.other(me))) {
 			return;
 		}
 
 		if (kind.equals("msg")) {
-			long ts = Math.min(System.currentTimeMillis(), o.get("ts").getAsLong());
+			long sent = o.get("ts").getAsLong();
 			String text = clean(str(o, "tx"), 200);
 			String from = u.toString();
-			boolean known = t.messages.stream().anyMatch(m -> m.ts == ts && from.equals(m.from));
+			// Recognized by the sender's clock; chats from 1.1.0 only have min(arrival, sent) in ts.
+			boolean known = t.messages.stream().anyMatch(m -> from.equals(m.from) && (m.sent == sent || (m.sent == 0 && m.ts == sent)));
 			if (!text.isEmpty() && !known) {
-				addMessage(t, new Msg(from, name, text, ts));
+				// Always at the end: the sender's clock can be seconds off, and sorting by it put
+				// replies above the message they answer. One the broker kept while I was away is
+				// newer than everything already in the chat as well.
+				addMessage(t, new Msg(from, name, text, arrivalTime(t), sent));
 				if (!id.equals(viewing)) {
 					t.unread++;
-					if (!stored) notifier.notify("Trade mit " + name, text, u);
+					if (!stored) notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, u, name, text, null, null, t));
 				}
 			}
 		}
@@ -738,11 +793,18 @@ public final class Market implements MarketRelay.Handler {
 		names.put(u, name);
 		tpas.removeIf(t -> t.from.equals(u));
 		tpas.add(new TpaRequest(u, name, System.currentTimeMillis()));
-		notifier.notify("TPA-Anfrage", name + " möchte sich zu dir teleportieren", u);
+		notifier.notify(new Notice(Notice.Kind.TPA, u, name, "", null, null, null));
 	}
 
-	private static void addMessage(Trade t, Msg m) {
-		// Keep sorted by time: stored messages can arrive out of order.
+	/** Order time that puts a message at the end of the chat (see onTradeMessage). */
+	private static long arrivalTime(Trade t) {
+		long last = t.messages.isEmpty() ? 0 : t.messages.get(t.messages.size() - 1).ts;
+		return Math.max(System.currentTimeMillis(), last + 1);
+	}
+
+	private void addMessage(Trade t, Msg m) {
+		chatVersion++;
+		// Sorted by order time (ts); new messages get one at the end, see arrivalTime.
 		List<Msg> list = t.messages;
 		int i = list.size();
 		while (i > 0 && list.get(i - 1).ts > m.ts) i--;
