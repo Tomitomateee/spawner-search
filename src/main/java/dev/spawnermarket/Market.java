@@ -68,6 +68,13 @@ public final class Market implements MarketRelay.Handler {
 	 * game is restarted and is asked again after that (never saved to a file).
 	 */
 	private static final Map<String, List<Clan.Seg>> CLAN_BY_NAME = new HashMap<>();
+	/** Names for which "/clan info" said "no clan" since the game started. */
+	private static final Set<String> NO_CLAN_NAMES = new HashSet<>();
+	/**
+	 * My tag as the relay still has it from before the restart: the others keep seeing it until I
+	 * run /clan info again (which then decides). Only shared, never shown as "my clan" here.
+	 */
+	private List<Clan.Seg> carriedClan;
 	/** Until when an answer to "/clan info" is expected (I sent or typed the command). */
 	private long clanInfoUntil;
 	/** Since joining hugoSMP: "/clan info" was answered (clan or "no clan"), and when it was sent. */
@@ -793,8 +800,12 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("nm", myName());
 		o.addProperty("sv", server());
 		o.addProperty("ts", System.currentTimeMillis());
+		// "cl": my tag; an empty list = I'm in no clan; missing = not asked yet since the game
+		// started – then the others keep showing the tag they know.
 		List<Clan.Seg> mine = myClanTag();
 		if (mine != null) o.add("cl", Clan.toJson(mine));
+		else if (NO_CLAN_NAMES.contains(myName().toLowerCase(Locale.ROOT))) o.add("cl", new JsonArray());
+		else if (carriedClan != null) o.add("cl", Clan.toJson(carriedClan));
 		relay.publish("p/" + me(), o, true);
 	}
 
@@ -862,12 +873,14 @@ public final class Market implements MarketRelay.Handler {
 		List<Clan.Seg> tag = Clan.parseTag(message);
 		if (tag != null) {
 			CLAN_BY_NAME.put(myName().toLowerCase(Locale.ROOT), tag);
+			NO_CLAN_NAMES.remove(myName().toLowerCase(Locale.ROOT));
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0; // share it right away
 			say("Clan erkannt: " + Clan.text(tag));
 		} else if (Clan.saysNoClan(message)) {
 			CLAN_BY_NAME.remove(myName().toLowerCase(Locale.ROOT));
+			NO_CLAN_NAMES.add(myName().toLowerCase(Locale.ROOT));
 			clanInfoUntil = 0;
 			clanAnswered = true;
 			lastHeartbeat = 0;
@@ -890,7 +903,9 @@ public final class Market implements MarketRelay.Handler {
 		// The broker may have lost my retained messages: send them again.
 		for (Map.Entry<String, JsonObject> e : config.published.entrySet()) relay.publish(e.getKey(), e.getValue(), true);
 		resendTrades();
-		lastHeartbeat = 0;
+		// First status a few seconds later: by then my stored status (with my clan) has arrived,
+		// so it isn't overwritten by one without it.
+		lastHeartbeat = System.currentTimeMillis() - HEARTBEAT_MS + 4000;
 	}
 
 	/**
@@ -1061,10 +1076,14 @@ public final class Market implements MarketRelay.Handler {
 		long now = System.currentTimeMillis();
 		long seen = stored && o.has("ts") ? Math.min(now, o.get("ts").getAsLong()) : now;
 		presence.put(u, new Presence(clean(str(o, "sv"), 64), true, seen));
-		// No tag in the status = left the clan (or never read it).
-		List<Clan.Seg> tag = Clan.fromJson(o.get("cl"));
-		if (tag == null) clans.remove(u);
-		else if (!u.equals(me())) clans.put(u, tag);
+		// Only an empty tag list means "no clan". Without one they just haven't run /clan info since
+		// their game started: keep the tag we know, it's still their clan.
+		if (u.equals(me()) && stored && carriedClan == null) carriedClan = Clan.fromJson(o.get("cl"));
+		if (o.has("cl") && !u.equals(me())) {
+			List<Clan.Seg> tag = Clan.fromJson(o.get("cl"));
+			if (tag == null) clans.remove(u);
+			else clans.put(u, tag);
+		}
 	}
 
 	private void onTradeMessage(String[] part, JsonObject o, boolean stored) {
