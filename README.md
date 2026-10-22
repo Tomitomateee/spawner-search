@@ -109,6 +109,11 @@ Unter **Zahnrad → Filter & Anzeige** ist alles einstellbar:
 - Preise sind in der Währung des jeweiligen Servers – darum zeigt der Markt deinen Server
   (bist du auf keinem, alle Server).
 
+## Discord
+
+Mit dem Programm in [`discord-bridge/`](discord-bridge/README.md) erscheinen Verkauf, Ankauf,
+Preise und Vouches live in vier Discord-Kanälen (über Webhooks).
+
 ## Bauen
 
 ```

@@ -1,0 +1,11 @@
+{
+  "server": "",
+  "webhooks": {
+    "verkauf": "https://discord.com/api/webhooks/...",
+    "ankauf": "https://discord.com/api/webhooks/...",
+    "preise": "https://discord.com/api/webhooks/...",
+    "vouches": "https://discord.com/api/webhooks/..."
+  },
+  "maxPerSpawner": 10,
+  "postExistingVouches": false
+}

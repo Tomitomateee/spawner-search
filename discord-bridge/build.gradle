@@ -1,0 +1,29 @@
+plugins {
+	id 'java'
+}
+
+group = 'dev.spawnermarket'
+version = '1.0.0'
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'com.google.code.gson:gson:2.13.2'
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = 'UTF-8'
+	options.release = 21
+}
+
+// One jar with Gson inside: "java -jar spawner-market-discord.jar" is all it takes.
+jar {
+	archiveBaseName = 'spawner-market-discord'
+	archiveVersion = ''
+	manifest.attributes 'Main-Class': 'dev.spawnermarket.bridge.Bridge'
+	from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+	exclude 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'module-info.class', 'META-INF/versions/**/module-info.class'
+}

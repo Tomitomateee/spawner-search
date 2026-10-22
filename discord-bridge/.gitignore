@@ -1,0 +1,5 @@
+# Holds the webhook URLs: never commit it.
+bridge.json
+bridge-state.json
+.gradle/
+build/
