@@ -3,7 +3,9 @@ package dev.spawnersearch.bridge;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -114,6 +116,8 @@ public final class Bridge implements Relay.Handler {
 		// Umlauts and emoji in the console (start.bat switches it to UTF-8).
 		System.setOut(new java.io.PrintStream(new java.io.FileOutputStream(java.io.FileDescriptor.out), true, StandardCharsets.UTF_8));
 		boolean dryRun = List.of(args).contains("--dry-run");
+		// One-off: post every vouch again (after the old posts were deleted), then end.
+		boolean repostVouches = List.of(args).contains("--vouches-neu-posten");
 		if (!dryRun) {
 			// Only one at a time: a second start (e.g. autostart plus a double click) just ends.
 			java.nio.channels.FileChannel lock = java.nio.channels.FileChannel.open(LOCK,
@@ -149,7 +153,9 @@ public final class Bridge implements Relay.Handler {
 		State state = Files.exists(STATE) ? GSON.fromJson(Files.readString(STATE, StandardCharsets.UTF_8), State.class) : new State();
 		if (state.messages == null) state.messages = new LinkedHashMap<>();
 		if (state.vouches == null) state.vouches = new LinkedHashSet<>();
-		new Bridge(config, state, dryRun).run();
+		Bridge bridge = new Bridge(config, state, dryRun);
+		if (repostVouches) bridge.repostVouches();
+		else bridge.run();
 	}
 
 	private void run() throws InterruptedException {
@@ -178,6 +184,55 @@ public final class Bridge implements Relay.Handler {
 			}
 			if (dryRun) return;
 		}
+	}
+
+	private void repostVouches() throws InterruptedException {
+		log("Vouches neu posten" + (dryRun ? " – Probelauf" : ""));
+		relay.start();
+		for (int i = 0; i < 60 && (!relay.connected() || System.currentTimeMillis() - connectedAt < 8000); i++) Thread.sleep(1000);
+		if (!relay.connected()) {
+			log("Relay nicht erreichbar – nichts gepostet");
+			System.exit(1);
+		}
+		synchronized (this) {
+			List<Vouch> list = new ArrayList<>(countedVouches(confirmedDeals()));
+			list.addAll(extraVouches());
+			list.sort(Comparator.comparingLong(Vouch::ts));
+			String url = config.webhooks.get("vouches");
+			int posted = 0;
+			for (Vouch v : list) {
+				JsonObject message = vouchMessage(v);
+				if (dryRun) System.out.println("\n===== #vouches (neu) =====\n" + preview(message));
+				else if (url == null || url.isBlank() || Discord.post(url, message) == null) break;
+				state.vouches.add(v.key);
+				posted++;
+			}
+			state.vouchesInitialized = true;
+			if (!dryRun) saveState();
+			log("#vouches: " + posted + " von " + list.size() + " Vouches neu gepostet");
+		}
+		System.exit(0);
+	}
+
+	/**
+	 * Vouches that are only left in Discord, not on the relay any more: {@code vouches-nachtragen.json},
+	 * a list of {von, an, bewertung (1/0/-1), text, zeit (ISO-8601)}.
+	 */
+	private static List<Vouch> extraVouches() {
+		List<Vouch> out = new ArrayList<>();
+		Path file = HOME.resolve("vouches-nachtragen.json");
+		if (!Files.exists(file)) return out;
+		try {
+			for (JsonElement el : JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8)).getAsJsonArray()) {
+				JsonObject o = el.getAsJsonObject();
+				long ts = Instant.parse(o.get("zeit").getAsString()).toEpochMilli();
+				out.add(new Vouch("extra/" + ts, "", o.get("an").getAsString(), "", o.get("von").getAsString(),
+						o.get("bewertung").getAsInt(), "", o.has("text") ? o.get("text").getAsString() : "", ts));
+			}
+		} catch (Exception e) {
+			log("vouches-nachtragen.json nicht lesbar: " + e);
+		}
+		return out;
 	}
 
 	@Override

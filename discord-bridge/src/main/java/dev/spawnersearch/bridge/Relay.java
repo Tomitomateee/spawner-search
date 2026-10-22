@@ -30,8 +30,12 @@ final class Relay {
 
 	private static final String HOST = "broker.emqx.io";
 	private static final int PORT = 1883, KEEPALIVE_S = 60;
-	/** Must match MarketRelay.ROOT in the mod. */
-	static final String ROOT = "spawnersearch/" + hash("spawnersearch:v1") + "/";
+	/** Must match MarketRelay.ROOT in the mod. {@code -Dbridge.relay=<name>} reads another channel (e.g. an older mod version's). */
+	static final String ROOT = root(System.getProperty("bridge.relay", "spawnersearch"));
+
+	private static String root(String name) {
+		return name + "/" + hash(name + ":v1") + "/";
+	}
 
 	private final Handler handler;
 	private volatile boolean connected;
