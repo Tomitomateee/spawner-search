@@ -23,6 +23,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -75,8 +76,8 @@ public class MarketScreen extends Screen {
 
 	// Market
 	private Mode mode = Mode.MARKET;
+	/** 0 = Verkauf, 1 = Ankauf, 2 = Deals, 3 = Preise. */
 	private int tab;
-	private int sideFilter;
 	private String typeFilter;
 	/** "Meine Gebote": only my own offers, on every server. */
 	private boolean myOnly;
@@ -196,8 +197,8 @@ public class MarketScreen extends Screen {
 		panel(g, vx, py, sw, H);
 		renderVouches(g, mx, my);
 		renderDrawer(g, mx, my);
-		if (mode == Mode.NOTIFY) {
-			// Banners are hidden while this menu is open – except here, as a preview.
+		if (market.config().bannerInMarket || mode == Mode.NOTIFY) {
+			// On top of everything; on the settings page also as a preview when switched off.
 			g.nextStratum();
 			Banner.render(g, market.config());
 		}
@@ -251,27 +252,25 @@ public class MarketScreen extends Screen {
 
 	private void renderMarketTabs(GuiGraphics g, int mx, int my) {
 		String sv = scopeServer();
-		List<Offer> offers = filteredOffers(sv);
+		// Verkauf and Ankauf are separate lists, so selling and buying never get mixed up.
 		segmented(g, mx, my, px + 12, py + 28, PW - 24,
-				new String[] { "Markt · " + offers.size(), "Deals", "Preise" }, tab, i -> {
+				new String[] { "Verkauf", "Ankauf", "Deals", "Preise" }, tab, i -> {
 					tab = i;
 					listScroll = 0;
 				});
+		boolean offerTab = tab <= 1, sell = tab == 0;
+		List<Offer> offers = offerTab ? filteredOffers(sv, sell) : List.of();
 
-		// Filter row: buy/sell and "my offers" (market only).
+		// Filter row: how many, and "my offers" (offer lists only).
 		int fy = py + 50;
-		if (tab == 0) {
-			String[] sides = { "Alle", "Verkauf", "Ankauf" };
-			int cx = px + 12;
-			for (int i = 0; i < sides.length; i++) {
-				int idx = i;
-				cx += chip(g, mx, my, cx, fy, sides[i], sideFilter == i, () -> {
-					sideFilter = idx;
-					listScroll = 0;
-				}) + 4;
-			}
+		if (offerTab) {
+			int n = offers.size();
+			String count = n + (sell ? (n == 1 ? " verkauft" : " verkaufen") : (n == 1 ? " kauft" : " kaufen"))
+					+ (myOnly ? " · nur meine" : "");
+			g.drawString(font, clip(count, PW - 28), px + 14, fy + 3, sell ? TEAL_BOTTOM : ACCENT_TOP, false);
+		} else {
+			g.drawString(font, tab == 2 ? "Abgeschlossene Deals" : "Höchste Preise", px + 14, fy + 3, TEXT_SOFT, false);
 		}
-		if (tab != 0) g.drawString(font, tab == 1 ? "Abgeschlossene Deals" : "Höchste Preise", px + 14, fy + 3, TEXT_SOFT, false);
 
 		// Spawner filter: click a model to show only that spawner, click again for all.
 		int n = Spawners.ALL.length, cell = (PW - 24) / n, gx = px + 12 + (PW - 24 - n * cell) / 2, gy = py + 68;
@@ -292,14 +291,14 @@ public class MarketScreen extends Screen {
 		int top = py + 94;
 		int bottom = py + H - 34;
 		switch (tab) {
-			case 1 -> renderDeals(g, mx, my, top, bottom, filterDeals(market.deals(sv)));
-			case 2 -> renderPrices(g, mx, my, top, bottom, filterPrices(market.prices(sv)));
-			default -> renderOffers(g, mx, my, top, bottom, offers);
+			case 2 -> renderDeals(g, mx, my, top, bottom, filterDeals(market.deals(sv)));
+			case 3 -> renderPrices(g, mx, my, top, bottom, filterPrices(market.prices(sv)));
+			default -> renderOffers(g, mx, my, top, bottom, offers, sell);
 		}
 
 		// Bottom: create an offer / explanation.
 		int by = py + H - 28;
-		if (tab == 0) {
+		if (offerTab) {
 			// "Meine Gebote" (all my own offers, every server) on the left, create on the right.
 			int mw = 84;
 			boolean hm = hover(mx, my, px + 12, by, mw, 20);
@@ -316,7 +315,7 @@ public class MarketScreen extends Screen {
 			centered(g, "+ Angebot", cx + cw / 2, by + 6, WHITE);
 			hit(cx, by, cw, 20, this::openCreate);
 		} else {
-			centered(g, tab == 1 ? "Deals entstehen durch einen Vouch" : "Höchster Ankauf / Verkauf · Ø aus Deals",
+			centered(g, tab == 2 ? "Deals entstehen durch einen Vouch" : "Höchster Ankauf / Verkauf · Ø aus Deals",
 					px + PW / 2, by + 6, TEXT_FAINT);
 		}
 	}
@@ -335,15 +334,25 @@ public class MarketScreen extends Screen {
 		return list;
 	}
 
-	private List<Offer> filteredOffers(String sv) {
+	/**
+	 * One side of the market. Sell offers cheapest first (that's what a buyer looks for), buy
+	 * offers highest first (what a seller looks for); newest first among equal prices.
+	 */
+	private List<Offer> filteredOffers(String sv, boolean sell) {
 		List<Offer> list = new ArrayList<>();
 		for (Offer o : myOnly ? market.myOffers() : market.offers(sv)) {
-			if (sideFilter == 1 && !o.sell()) continue;
-			if (sideFilter == 2 && o.sell()) continue;
+			if (o.sell() != sell) continue;
 			if (typeFilter != null && !typeFilter.equals(o.type())) continue;
 			list.add(o);
 		}
+		Comparator<Offer> byPrice = Comparator.comparingLong(Offer::price);
+		list.sort((sell ? byPrice : byPrice.reversed()).thenComparing(Comparator.comparingLong(Offer::ts).reversed()));
 		return list;
+	}
+
+	/** Price × amount without overflowing (up to 10^15 × 10^5). */
+	private static long total(long price, int amount) {
+		return price > Long.MAX_VALUE / amount ? Long.MAX_VALUE : price * amount;
 	}
 
 	private int visibleRows(int top, int bottom) {
@@ -358,15 +367,16 @@ public class MarketScreen extends Screen {
 		Glass.roundRect(g, px + PW - 6, thumbY, 3, thumbH, 1.5f, Glass.argb(0x80, ACCENT));
 	}
 
-	private void renderOffers(GuiGraphics g, int mx, int my, int top, int bottom, List<Offer> list) {
+	private void renderOffers(GuiGraphics g, int mx, int my, int top, int bottom, List<Offer> list, boolean sell) {
 		int visible = visibleRows(top, bottom);
 		listScroll = Math.max(0, Math.min(listScroll, Math.max(0, list.size() - visible)));
 		if (list.isEmpty()) {
 			if (myOnly) {
-				centered(g, "Du hast keine Gebote", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
+				centered(g, sell ? "Du verkaufst gerade nichts" : "Du suchst gerade nichts", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
 				centered(g, "„+ Angebot erstellen“", px + PW / 2, (top + bottom) / 2, TEXT_SOFT);
 			} else {
-				centered(g, typeFilter != null || sideFilter != 0 ? "Nichts gefunden" : "Noch keine Angebote", px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
+				centered(g, typeFilter != null ? "Nichts gefunden" : sell ? "Niemand verkauft gerade" : "Niemand kauft gerade",
+						px + PW / 2, (top + bottom) / 2 - 10, TEXT_SOFT);
 				centered(g, Market.server().isEmpty() ? "Sei der Erste!" : "auf diesem Server", px + PW / 2, (top + bottom) / 2, TEXT_SOFT);
 			}
 		}
@@ -400,8 +410,9 @@ public class MarketScreen extends Screen {
 			} else {
 				String price = "je " + Spawners.format(o.price());
 				g.drawString(font, price, rx - font.width(price), y + 4, ACCENT, false);
-				String side = o.sell() ? "Verkauf" : "Ankauf";
-				g.drawString(font, side, rx - font.width(side), y + 15, o.sell() ? TEAL_BOTTOM : ACCENT_TOP, false);
+				// The list already says which side; the total helps more here.
+				String sum = "ges. " + Spawners.format(total(o.price(), o.amount()));
+				g.drawString(font, sum, rx - font.width(sum), y + 15, o.sell() ? TEAL_BOTTOM : ACCENT_TOP, false);
 			}
 		}
 		g.disableScissor();
@@ -477,6 +488,8 @@ public class MarketScreen extends Screen {
 			return;
 		}
 		mode = Mode.CREATE;
+		// From the Ankauf list you most likely want to buy.
+		createSell = tab != 1;
 		if (typeFilter != null && Spawners.index(typeFilter) >= 0) createType = Spawners.index(typeFilter);
 		setFocused(amountBox);
 	}
@@ -542,8 +555,8 @@ public class MarketScreen extends Screen {
 		priceBox.setValue("");
 		noteBox.setValue("");
 		backToMarket();
-		tab = 0;
-		sideFilter = 0;
+		// The list the new offer is in.
+		tab = createSell ? 0 : 1;
 		typeFilter = null;
 		myOnly = true;
 		listScroll = 0;
@@ -597,9 +610,9 @@ public class MarketScreen extends Screen {
 				y = settingRow(g, y, "TPA-Anfragen", c.notifyTpa, () -> c.notifyTpa = !c.notifyTpa,
 						"Ein anderer Spieler mit der Mod hat dir über den TPA-Knopf eine Teleport-Anfrage geschickt. "
 								+ "Annehmen kannst du sie links bei den Trade-Chats.");
-				y = settingRow(g, y, "Alle neuen Deals", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals,
-						"Meldet auch Deals zwischen anderen Spielern, sobald beide Seiten sie bestätigt haben. Dafür gelten "
-								+ "„Nur mein Server“ und die Spawner-Auswahl aus dem Tab „Angebote“.");
+				y = settingRow(g, y, "Jeder Kauf/Verkauf", c.notifyAllDeals, () -> c.notifyAllDeals = !c.notifyAllDeals,
+						"Meldet, wenn andere Spieler Spawner kaufen oder verkaufen – sobald beide Seiten den Deal "
+								+ "bestätigt haben. Dafür gelten „Nur mein Server“ und die Spawner-Auswahl aus dem Tab „Angebote“.");
 			}
 			case 2 -> {
 				g.drawString(font, "Position oben", px + 14, y, TEXT, false);
@@ -624,7 +637,8 @@ public class MarketScreen extends Screen {
 				y = settingRow(g, y, "Auch über Menüs", c.bannerInMenus, () -> c.bannerInMenus = !c.bannerInMenus,
 						"Zeigt die Banner auch, wenn ein anderes Menü offen ist, zum Beispiel das Inventar, eine Kiste oder "
 								+ "das Pause-Menü. Ist das aus, kommen Banner nur direkt im Spiel.");
-				y = note(g, y, "Solange das Spawnerhandel-Menü offen ist, kommen keine Banner, weil du hier ohnehin alles siehst.");
+				y = settingRow(g, y, "Auch im Spawnerhandel", c.bannerInMarket, () -> c.bannerInMarket = !c.bannerInMarket,
+						"Zeigt die Banner auch über diesem Menü, oben am Bildrand. Ist das aus, kommen hier keine Banner.");
 			}
 			case 3 -> y = renderNotifyAlarms(g, mx, my, c, y);
 			default -> y = renderNotifyOffers(g, mx, my, c, y);

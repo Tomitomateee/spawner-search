@@ -20,8 +20,8 @@ public final class Notifications {
 
 	public static void handle(Market market, Notice n) {
 		MarketConfig c = market.config();
-		// The open menu shows all of this itself.
-		if (!c.notifications || Minecraft.getInstance().screen instanceof MarketScreen) return;
+		if (!c.notifications) return;
+		if (!c.bannerInMarket && Minecraft.getInstance().screen instanceof MarketScreen) return;
 		Banner.Note note = switch (n.kind()) {
 			case OFFER -> {
 				long avg = average(market, n.offer().server(), n.offer().type());
@@ -103,7 +103,7 @@ public final class Notifications {
 
 	static Banner.Note dealNote(Deal d) {
 		return new Banner.Note(Spawners.get(d.type()), d.seller(), d.sellerName(), amountName(d.amount(), d.type()),
-				"je " + Spawners.format(d.price()), "Deal", false, d.sellerName() + " → " + d.buyerName(),
+				"je " + Spawners.format(d.price()), "Verkauft", true, d.sellerName() + " → " + d.buyerName(),
 				"ges. " + Spawners.format(total(d.price(), d.amount())), 0);
 	}
 
