@@ -112,6 +112,8 @@ public class MarketConfig {
 		public boolean sell;
 		public int amount, unread;
 		public long price, created;
+		/** The other side runs a mod version from before both-sided vouching (warned once). */
+		public boolean oldPeer;
 		public List<Msg> messages = new ArrayList<>();
 
 		/** The other player in this trade, seen from {@code me}. */

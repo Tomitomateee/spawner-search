@@ -1225,7 +1225,8 @@ public class MarketScreen extends Screen {
 		int y = top;
 		for (int i = vouchScroll; i < list.size() && y < bottom; i++) {
 			Vouch v = list.get(i);
-			List<FormattedCharSequence> lines = font.split(Component.literal(v.text()), sw - 30);
+			String shown = v.text().isEmpty() && v.rating() == 0 ? "Trade kam nicht zustande" : v.text();
+			List<FormattedCharSequence> lines = font.split(Component.literal(shown), sw - 30);
 			if (lines.size() > 3) lines = lines.subList(0, 3);
 			int h = 16 + lines.size() * 10;
 			int x = vx + 8, w = sw - 16;
@@ -1267,7 +1268,7 @@ public class MarketScreen extends Screen {
 		Glass.roundRect(g, vx + 10, iy, sw - 20, 18, 9, PILL_TOP, PILL_BOTTOM);
 		Glass.roundOutline(g, vx + 10, iy, sw - 20, 18, 9, vouchBox.isFocused() ? ACCENT_TOP : 0xC0FFFFFF);
 		place(vouchBox, vx + 10, iy, sw - 20);
-		vouchBox.setHint(Component.literal("Wie lief der Trade?").withColor(0xFF8E8AA0));
+		vouchBox.setHint(Component.literal("Wie lief der Trade? (bei Neutral leer)").withColor(0xFF8E8AA0));
 		hit(vx + 10, iy, sw - 20, 18, () -> setFocused(vouchBox));
 		// + closes the deal, ○ = trade didn't happen (offer stays), − = no deal; the chat closes on each.
 		int bw = (sw - 24 - 8) / 3, by = py + H - 28;

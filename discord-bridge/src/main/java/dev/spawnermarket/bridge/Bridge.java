@@ -453,7 +453,7 @@ public final class Bridge implements Relay.Handler {
 		String title = v.rating > 0 ? "✅ Positiver Vouch" : v.rating == 0 ? "⚪ Neutraler Vouch" : "❌ Negativer Vouch";
 		String color = v.rating > 0 ? "3DDC84" : v.rating == 0 ? "9A98AC" : "F0506E";
 		String target = v.targetName.isEmpty() ? "?" : v.targetName;
-		JsonObject e = embed(title, "**" + md(v.fromName) + "** → **" + md(target) + "**\n> " + md(v.text)
+		JsonObject e = embed(title, "**" + md(v.fromName) + "** → **" + md(target) + "**" + (v.text.isEmpty() ? "" : "\n> " + md(v.text))
 				+ (v.rating > 0 ? "\n-# Deal von beiden bestätigt" : v.rating == 0 ? "\n-# Trade kam nicht zustande" : ""), color);
 		e.addProperty("timestamp", Instant.ofEpochMilli(v.ts).toString());
 		JsonObject msg = baseMessage("");

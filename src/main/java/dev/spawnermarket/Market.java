@@ -519,6 +519,8 @@ public final class Market implements MarketRelay.Handler {
 		o.addProperty("p", t.price);
 		o.addProperty("sv", t.server);
 		o.addProperty("ts", ts);
+		// 2 = both sides vouch before the trade closes (1.3.1+).
+		o.addProperty("ver", TRADE_PROTOCOL);
 		if (kind.equals("msg")) {
 			// My last messages ride along (oldest first): the broker only keeps the newest one,
 			// so whatever they missed – offline, a dropped connection – arrives with the next.
@@ -582,6 +584,7 @@ public final class Market implements MarketRelay.Handler {
 	 */
 	/** Messages both sides wrote in a trade chat (the mod's own notes don't count). */
 	public static final int VOUCH_MIN_MESSAGES = 2;
+	private static final int TRADE_PROTOCOL = 2;
 
 	/** How many real messages the trade chat has, and whether both players wrote something. */
 	public static int chatMessages(Trade t) {
@@ -597,7 +600,11 @@ public final class Market implements MarketRelay.Handler {
 
 	/** Why I can't vouch in this trade yet, or null when I can. */
 	public String vouchBlocker(Trade t) {
-		if (vouchIn(t, me()) != null) return "Warte auf den Vouch von " + t.otherName(me().toString());
+		String me = me().toString();
+		if (vouchIn(t, me()) != null) return "Warte auf den Vouch von " + t.otherName(me);
+		// The partner already vouched, so the trade happened: answering it must never be blocked,
+		// not even when some of their messages didn't reach me.
+		if (vouchIn(t, UUID.fromString(t.other(me))) != null) return null;
 		if (chatMessages(t) < VOUCH_MIN_MESSAGES || !bothWrote(t)) return "Erst mind. " + VOUCH_MIN_MESSAGES + " Nachrichten im Chat";
 		return null;
 	}
@@ -632,9 +639,10 @@ public final class Market implements MarketRelay.Handler {
 		if (trade == null) return "Vouchen geht nur nach einem Trade";
 		String blocked = vouchBlocker(trade);
 		if (blocked != null) return blocked;
-		text = clean(text, 120);
-		if (text.length() < 3) return "Schreib kurz, wie der Handel lief";
 		rating = Integer.signum(rating);
+		// Neutral = the trade didn't happen: nothing to describe, so no text.
+		text = rating == 0 ? "" : clean(text, 120);
+		if (rating != 0 && text.length() < 3) return "Schreib kurz, wie der Handel lief";
 		JsonObject v = new JsonObject();
 		v.addProperty("u", me().toString());
 		v.addProperty("nm", myName());
@@ -924,8 +932,22 @@ public final class Market implements MarketRelay.Handler {
 		String kind = str(o, "k");
 		Trade t = config.trades.get(id);
 
+		if (t != null && u.toString().equals(t.other(me)) && (!o.has("ver") || o.get("ver").getAsInt() < TRADE_PROTOCOL) && !t.oldPeer) {
+			// Before 1.3.1 a single vouch closed the trade: say why it may not work for both.
+			t.oldPeer = true;
+			addMessage(t, new Msg("", "", name + " nutzt eine ältere Version der Mod. Damit ihr beide vouchen könnt, "
+					+ "braucht ihr beide mindestens 1.3.2.", arrivalTime(t)));
+			config.save();
+		}
+
 		if (kind.equals("close")) {
 			if (t == null || !u.toString().equals(t.other(me))) return;
+			// An older client closes the trade right after its own vouch. Then the vouch is
+			// already here: keep the chat open, so I can still vouch back.
+			if (vouchIn(t, u) != null && vouchIn(t, me()) == null) {
+				config.save();
+				return;
+			}
 			// They cancelled with ✕ (deals only come from both vouches).
 			forgetTrade(t);
 			if (!stored) notifier.notify(new Notice(Notice.Kind.TRADE_CLOSED, u, name, "", null, null, t));

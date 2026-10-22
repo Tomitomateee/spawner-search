@@ -47,6 +47,15 @@ public final class MarketRelay {
 	private volatile boolean connected;
 	private volatile Socket socket;
 	private volatile OutputStream out;
+	/** Packet id → when it was sent, until the broker confirms it (PUBACK). */
+	private final java.util.Map<Integer, Long> unconfirmed = new java.util.concurrent.ConcurrentHashMap<>();
+	private final java.util.concurrent.ScheduledExecutorService watchdog = Executors.newSingleThreadScheduledExecutor(r -> {
+		Thread t = new Thread(r, "spawnermarket-watchdog");
+		t.setDaemon(true);
+		return t;
+	});
+	private static final long CONFIRM_MS = 8000;
+	private int packetId;
 
 	public MarketRelay(Handler handler) {
 		this.handler = handler;
@@ -65,20 +74,37 @@ public final class MarketRelay {
 	/** Publishes {@code body} (null = delete the retained message) on a topic below the root. */
 	public void publish(String topic, JsonObject body, boolean retain) {
 		byte[] payload = body == null ? new byte[0] : body.toString().getBytes(StandardCharsets.UTF_8);
+		// Trade messages and vouches must arrive: the broker confirms them (QoS 1). Without the
+		// confirmation the connection is treated as dead – a socket can look fine for a minute
+		// after the network went away – and after reconnecting everything open is sent again.
+		boolean confirm = topic.startsWith("m/") || topic.startsWith("v/");
 		sender.execute(() -> {
 			OutputStream o = out;
 			if (o == null) return;
 			try {
-				byte[] packet = publishPacket(ROOT + topic, payload, retain);
+				int id = confirm ? nextPacketId() : 0;
+				byte[] packet = publishPacket(ROOT + topic, payload, retain, id);
+				if (confirm) unconfirmed.put(id, System.currentTimeMillis());
 				synchronized (this) {
 					o.write(packet);
 					o.flush();
 				}
+				if (confirm) watchdog.schedule(() -> {
+					if (unconfirmed.remove(id) != null && out == o) {
+						SpawnerMarketClient.LOGGER.info("Relay: keine Bestätigung vom Broker, verbinde neu");
+						closeSocket();
+					}
+				}, CONFIRM_MS, java.util.concurrent.TimeUnit.MILLISECONDS);
 			} catch (IOException e) {
 				SpawnerMarketClient.LOGGER.debug("Relay: Senden fehlgeschlagen", e);
 				closeSocket();
 			}
 		});
+	}
+
+	private synchronized int nextPacketId() {
+		packetId = packetId % 65000 + 2; // 1 is the SUBSCRIBE
+		return packetId;
 	}
 
 	/** Waits (briefly) until everything queued has been sent; used while the game quits. */
@@ -131,6 +157,7 @@ public final class MarketRelay {
 						byte[] body = in.readNBytes(h[1]);
 						if (body.length < h[1]) throw new EOFException();
 						if ((h[0] >> 4) == 3) onPublish(h[0], body);
+						else if ((h[0] >> 4) == 4 && body.length >= 2) unconfirmed.remove(((body[0] & 0xFF) << 8) | (body[1] & 0xFF)); // PUBACK
 					}
 				} catch (Exception e) {
 					if (on) SpawnerMarketClient.LOGGER.debug("Relay getrennt, verbinde neu", e);
@@ -221,10 +248,19 @@ public final class MarketRelay {
 	}
 
 	private static byte[] publishPacket(String topic, byte[] payload, boolean retain) throws IOException {
+		return publishPacket(topic, payload, retain, 0);
+	}
+
+	/** {@code id} > 0: QoS 1, the broker answers with a PUBACK for that id. */
+	private static byte[] publishPacket(String topic, byte[] payload, boolean retain, int id) throws IOException {
 		ByteArrayOutputStream v = new ByteArrayOutputStream();
 		writeString(v, topic);
+		if (id > 0) {
+			v.write(id >> 8);
+			v.write(id & 0xFF);
+		}
 		v.write(payload);
-		return packet(0x30 | (retain ? 1 : 0), v.toByteArray());
+		return packet(0x30 | (id > 0 ? 0x02 : 0) | (retain ? 1 : 0), v.toByteArray());
 	}
 
 	private static byte[] packet(int type, byte[] body) {

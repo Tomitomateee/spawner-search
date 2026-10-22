@@ -7,7 +7,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 ## Installation
 
 1. Fabric Loader und **Fabric API** für 1.21.11 installieren.
-2. `build/libs/spawner-market-1.3.1.jar` in den `mods`-Ordner kopieren.
+2. `build/libs/spawner-market-1.3.2.jar` in den `mods`-Ordner kopieren.
 3. Minecraft starten, einem Server beitreten, **H** drücken.
 
 ## Aufbau
@@ -48,7 +48,7 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
 - **Namen laufen automatisch mit:** Die Namen im Deal kommen aus den Minecraft-Konten der beiden
   Trade-Partner, nicht aus einem Textfeld, und beide Clients tragen den Deal unter ihrer eigenen
   Identität ein.
-- Beide Spieler brauchen mindestens Version 1.3.0 – ältere Versionen schließen den Trade schon
+- Beide Spieler brauchen mindestens Version 1.3.2 – ältere Versionen schließen den Trade schon
   nach einem Vouch.
 - TPA-Anfragen von anderen Mod-Spielern erscheinen oben mit **Ja** (schickt `/tpaccept <Name>`).
 
@@ -57,7 +57,9 @@ Relay (MQTT, `broker.emqx.io`) zwischen allen Spielern mit der Mod.
   (+ / −, Text, Datum) und ob er gerade online ist und wo.
 - **Vouchen geht nur nach einem Trade** – also nur für den Partner eines offenen Trade-Chats,
   und erst wenn im Chat **mindestens 2 Nachrichten** stehen (je eine von beiden Seiten). Dann Text
-  eingeben und **+ Deal**, **○ Neutral** oder **− Neg.** klicken.
+  eingeben und **+ Deal** oder **− Neg.** klicken – **○ Neutral** braucht keinen Text (der Trade kam
+  ja nicht zustande).
+- Hat der Partner schon gevoucht, kannst du immer zurückvouchen, auch wenn bei dir Nachrichten fehlen.
 - **Pro Trade vouched jeder genau einmal** für den anderen – egal ob Deal, neutral oder negativ.
   Ein Vouch eines offenen Trades lässt sich nicht löschen.
 - Vouches stacken: Jeder Trade bringt neue Vouches, auch vom selben Spieler. Ein positiver Vouch
