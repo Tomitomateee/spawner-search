@@ -3,3 +3,6 @@ bridge.json
 bridge-state.json
 .gradle/
 build/
+
+bridge.log
+stop.flag

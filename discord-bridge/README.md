@@ -27,7 +27,7 @@ installiert hast, reicht meist).
 1. **Webhooks anlegen** – für jeden der vier Kanäle in Discord:
    Kanal → ⚙️ *Kanal bearbeiten* → *Integrationen* → *Webhooks* → *Neuer Webhook* →
    *Webhook-URL kopieren*.
-2. Die Zip in einen eigenen Ordner entpacken (`spawner-market-discord.jar`, `start.bat` /
+2. Die Zip in einen eigenen Ordner entpacken (`spawner-market-discord.jar`, `start.bat`, `stop.bat` /
    `start.sh`, `einrichten.bat`).
 3. `einrichten.bat` doppelklicken: Es fragt nacheinander nach den vier URLs (einfügen mit
    Rechtsklick) und nach deinem Server und speichert alles in `bridge.json`. Oder von Hand:
@@ -56,8 +56,15 @@ installiert hast, reicht meist).
      wenn sich nichts geändert hat (Standard 3). Änderungen erscheinen sofort.
    - `postExistingVouches`: `true` postet beim ersten Start auch alle alten Vouches. Standard:
      nur neue.
-5. `start.bat` nochmal starten und das Fenster offen lassen. Nach ein paar Sekunden erscheinen
-   die Nachrichten in den Kanälen.
+5. `start.bat` starten. Die Bridge läuft dann **im Hintergrund ohne Fenster** weiter und startet
+   sich von selbst neu, falls sie einmal abbricht. Nach ein paar Sekunden erscheinen die
+   Nachrichten in den Kanälen.
+   - **Beenden:** `stop.bat`.
+   - **Was sie tut** (aktualisiert, aufgefrischt, Fehler von Discord): steht in `bridge.log`.
+   - **Zum Zuschauen:** `start-mit-fenster.bat` zeigt alles in einem Fenster – schließt du das
+     Fenster, stoppt die Bridge.
+   - Nach einem PC-Neustart musst du `start.bat` wieder starten (oder eine Verknüpfung davon in
+     den Autostart-Ordner legen: `Win+R` → `shell:startup`).
 
 **Probelauf ohne Discord:** `java -jar spawner-market-discord.jar --dry-run` zeigt im Fenster,
 was gepostet würde, und beendet sich.

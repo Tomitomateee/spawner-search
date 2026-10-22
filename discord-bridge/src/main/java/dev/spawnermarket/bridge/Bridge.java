@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -301,6 +300,8 @@ public final class Bridge implements Relay.Handler {
 			log("#" + channel + ": Live-Nachricht angelegt");
 		} else if (result < 0) {
 			return; // try again next round
+		} else {
+			log("#" + channel + (signature.equals(sent.get(channel)) ? ": aufgefrischt" : ": aktualisiert"));
 		}
 		sent.put(channel, signature);
 		sentAt.put(channel, now());
@@ -585,7 +586,18 @@ public final class Bridge implements Relay.Handler {
 		return System.currentTimeMillis();
 	}
 
-	static void log(String msg) {
-		System.out.println("[" + LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss")) + "] " + msg);
+	private static final Path LOG = Path.of("bridge.log");
+
+	/** Console and bridge.log (kept small: started over beyond 1 MB). */
+	static synchronized void log(String msg) {
+		String line = "[" + java.time.LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM. HH:mm:ss")) + "] " + msg;
+		System.out.println(line);
+		try {
+			if (Files.exists(LOG) && Files.size(LOG) > 1_000_000) Files.delete(LOG);
+			Files.writeString(LOG, line + System.lineSeparator(), StandardCharsets.UTF_8,
+					java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+		} catch (Exception ignored) {
+			// logging must never stop the bridge
+		}
 	}
 }
