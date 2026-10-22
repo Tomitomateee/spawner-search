@@ -738,7 +738,23 @@ public final class Market implements MarketRelay.Handler {
 	public void onConnected() {
 		// The broker may have lost my retained messages: send them again.
 		for (Map.Entry<String, JsonObject> e : config.published.entrySet()) relay.publish(e.getKey(), e.getValue(), true);
+		resendTrades();
 		lastHeartbeat = 0;
+	}
+
+	/**
+	 * For every open trade, sends my newest message again (with the ones before it), or the
+	 * start if I haven't written yet. The other side recognizes what it already has, so this
+	 * only fills gaps – e.g. a chat started while the other player was offline for hours.
+	 */
+	private void resendTrades() {
+		String me = me().toString();
+		for (Trade t : config.trades.values()) {
+			Msg last = null;
+			for (Msg m : t.messages) if (me.equals(m.from) && m.sent > 0) last = m;
+			if (last != null) sendTrade(t, "msg", last.text, false, last.sent);
+			else if (me.equals(t.partner)) sendTrade(t, "start", "", false, t.created);
+		}
 	}
 
 	@Override
@@ -948,16 +964,26 @@ public final class Market implements MarketRelay.Handler {
 
 		if (kind.equals("msg")) {
 			// First the messages of theirs I may have missed, then the new one.
+			int added = 0;
 			if (o.has("h") && o.get("h").isJsonArray()) {
 				JsonArray h = o.getAsJsonArray("h");
 				for (int i = Math.max(0, h.size() - HISTORY); i < h.size(); i++) {
 					// A broken entry must not cost the new message.
 					if (!h.get(i).isJsonObject() || !h.get(i).getAsJsonObject().has("ts")) continue;
 					JsonObject e = h.get(i).getAsJsonObject();
-					receive(t, u, name, clean(str(e, "tx"), 200), e.get("ts").getAsLong(), stored, true);
+					if (receive(t, u, name, clean(str(e, "tx"), 200), e.get("ts").getAsLong(), stored, true)) added++;
 				}
 			}
-			receive(t, u, name, clean(str(o, "tx"), 200), o.get("ts").getAsLong(), stored, false);
+			String text = clean(str(o, "tx"), 200);
+			boolean newOne = receive(t, u, name, text, o.get("ts").getAsLong(), stored, false);
+			if (newOne) added++;
+			// Written while I was offline (the broker hands it out on connect) or missed in
+			// between: still tell me, once, instead of leaving it to the unread count in the menu.
+			if (added > 0 && (stored || !newOne) && !t.id.equals(viewing)) {
+				String note = added == 1 ? (newOne ? text : "hat dir geschrieben") : added + " neue Nachrichten";
+				notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, u, name, note, null, null, t));
+				say(name + " hat dir im Trade-Chat geschrieben");
+			}
 		}
 		config.save();
 	}
@@ -968,11 +994,12 @@ public final class Market implements MarketRelay.Handler {
 	 * I missed ({@code late}, from the history of a later message) goes right before the next of
 	 * their messages I do have – their own messages can be compared by their own clock.
 	 */
-	private void receive(Trade t, UUID u, String name, String text, long sent, boolean stored, boolean late) {
+	/** Returns whether the message was new. */
+	private boolean receive(Trade t, UUID u, String name, String text, long sent, boolean stored, boolean late) {
 		String from = u.toString();
 		// Recognized by the sender's clock; chats from 1.1.0 only have min(arrival, sent) in ts.
 		boolean known = t.messages.stream().anyMatch(m -> from.equals(m.from) && (m.sent == sent || (m.sent == 0 && m.ts == sent)));
-		if (text.isEmpty() || known) return;
+		if (text.isEmpty() || known) return false;
 		int at = t.messages.size();
 		for (int i = 0; late && i < t.messages.size(); i++) {
 			Msg m = t.messages.get(i);
@@ -988,6 +1015,7 @@ public final class Market implements MarketRelay.Handler {
 			// One banner per arrival, for the new message.
 			if (!stored && !late) notifier.notify(new Notice(Notice.Kind.TRADE_MESSAGE, u, name, text, null, null, t));
 		}
+		return true;
 	}
 
 	private void onTpa(String[] part, JsonObject o, boolean stored) {
