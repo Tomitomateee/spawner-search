@@ -24,7 +24,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.Util;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
@@ -925,7 +924,7 @@ public class MarketScreen extends Screen {
 		int lx = dx + dw / 2 - (13 + 4 + font.width(label)) / 2;
 		g.blit(RenderPipelines.GUI_TEXTURED, DISCORD_LOGO, lx, jy + 3, 0, 0, 13, 13, 13, 13);
 		g.text(font, label, lx + 17, jy + 5, WHITE, false);
-		hit(dx + 12, jy, dw - 24, 18, () -> Util.getPlatform().openUri(java.net.URI.create(WelcomeScreen.DISCORD)));
+		hit(dx + 12, jy, dw - 24, 18, () -> com.mojang.blaze3d.Blaze3D.openUri(java.net.URI.create(WelcomeScreen.DISCORD)));
 		g.disableScissor();
 	}
 

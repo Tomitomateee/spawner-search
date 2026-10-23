@@ -2,7 +2,6 @@ package dev.spawnersearch.gui;
 
 import dev.spawnersearch.Clan;
 import dev.spawnersearch.Market;
-import net.minecraft.util.Util;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -119,7 +118,7 @@ public class WelcomeScreen extends Screen {
 			return true;
 		}
 		if (hover(mx, my, x + 24 + bw, by, bw, 20)) {
-			Util.getPlatform().openUri(java.net.URI.create(DISCORD));
+			com.mojang.blaze3d.Blaze3D.openUri(java.net.URI.create(DISCORD));
 			return true;
 		}
 		return super.mouseClicked(e, doubleClick);
