@@ -115,7 +115,7 @@ public class WelcomeScreen extends Screen {
 				return true;
 			}
 			market.welcomeDone();
-			minecraft.setScreen(new MarketScreen(market));
+			minecraft.gui.setScreen(new MarketScreen(market));
 			return true;
 		}
 		if (hover(mx, my, x + 24 + bw, by, bw, 20)) {

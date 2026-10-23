@@ -37,7 +37,7 @@ public class SpawnerSearchClient implements ClientModInitializer {
 
 		// Banners: in game as part of the HUD, in other menus on top of the menu.
 		HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(MOD_ID, "banner"), (g, delta) -> {
-			if (Minecraft.getInstance().screen == null) Banner.render(g, market.config());
+			if (Minecraft.getInstance().gui.screen() == null) Banner.render(g, market.config());
 		});
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
 			if (screen instanceof MarketScreen) return;
@@ -70,10 +70,10 @@ public class SpawnerSearchClient implements ClientModInitializer {
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			market.tick();
 			while (open.consumeClick()) {
-				if (client.screen != null) continue;
+				if (client.gui.screen() != null) continue;
 				// Each time I join hugoSMP: the welcome window (clan, Discord) before the market.
-				if (market.welcomePending()) client.setScreen(new WelcomeScreen(market));
-				else client.setScreen(new MarketScreen(market));
+				if (market.welcomePending()) client.gui.setScreen(new WelcomeScreen(market));
+				else client.gui.setScreen(new MarketScreen(market));
 			}
 		});
 	}

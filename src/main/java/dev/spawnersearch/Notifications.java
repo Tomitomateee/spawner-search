@@ -21,7 +21,7 @@ public final class Notifications {
 	public static void handle(Market market, Notice n) {
 		MarketConfig c = market.config();
 		if (!c.notifications) return;
-		if (!c.bannerInMarket && Minecraft.getInstance().screen instanceof MarketScreen) return;
+		if (!c.bannerInMarket && Minecraft.getInstance().gui.screen() instanceof MarketScreen) return;
 		Banner.Note note = switch (n.kind()) {
 			case OFFER -> {
 				long avg = average(market, n.offer().server(), n.offer().type());

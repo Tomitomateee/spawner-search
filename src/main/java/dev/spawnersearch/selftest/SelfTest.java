@@ -92,7 +92,7 @@ public final class SelfTest {
 		if (mc.options != null) mc.options.pauseOnLostFocus = false;
 		if (ticks == 1) mc.getTutorial().setStep(TutorialSteps.NONE);
 		if (!started) {
-			if (mc.player != null && mc.level != null && mc.screen == null && mc.getOverlay() == null && ticks > 100) {
+			if (mc.player != null && mc.level != null && mc.gui.screen() == null && mc.gui.overlay() == null && ticks > 100) {
 				started = true;
 				build();
 			} else if (ticks > 20 * 240) {
@@ -157,7 +157,7 @@ public final class SelfTest {
 		SCRIPT.add(mc -> shot(mc, "03-banner-links"));
 		SCRIPT.add(mc -> {
 			c.bannerPos = 1;
-			mc.setScreen(new InventoryScreen(mc.player));
+			mc.gui.setScreen(new InventoryScreen(mc.player));
 			return true;
 		});
 		SCRIPT.add(mc -> stepTicks > 5);
@@ -166,7 +166,7 @@ public final class SelfTest {
 		// The settings, clicked like a player would.
 		SCRIPT.add(mc -> {
 			Banner.clear();
-			mc.setScreen(new MarketScreen(market));
+			mc.gui.setScreen(new MarketScreen(market));
 			return true;
 		});
 		SCRIPT.add(mc -> stepTicks > 5);
@@ -220,7 +220,7 @@ public final class SelfTest {
 		SCRIPT.add(mc -> stepTicks > 5);
 		SCRIPT.add(mc -> shot(mc, "11-trade-chat"));
 		SCRIPT.add(mc -> {
-			mc.setScreen(null);
+			mc.gui.setScreen(null);
 			return true;
 		});
 		SCRIPT.add(SelfTest::finish);
@@ -455,15 +455,15 @@ public final class SelfTest {
 	}
 
 	private static int px(Minecraft mc) {
-		return (mc.screen.width - PW) / 2;
+		return (mc.gui.screen().width - PW) / 2;
 	}
 
 	private static int py(Minecraft mc) {
-		return (mc.screen.height - H) / 2;
+		return (mc.gui.screen().height - H) / 2;
 	}
 
 	private static int sw(Minecraft mc) {
-		return Math.max(110, Math.min(SIDE_MAX, (mc.screen.width - 12 - PW - 2 * GAP) / 2));
+		return Math.max(110, Math.min(SIDE_MAX, (mc.gui.screen().width - 12 - PW - 2 * GAP) / 2));
 	}
 
 	/** Center of tab {@code i} of the four tabs on the settings page (Angebote, Trades, Anzeige, Wecker). */
@@ -478,7 +478,7 @@ public final class SelfTest {
 	}
 
 	private static boolean click(Minecraft mc, int x, int y) {
-		mc.screen.mouseClicked(new MouseButtonEvent(x + 0.5, y + 0.5, new MouseButtonInfo(0, 0)), false);
+		mc.gui.screen().mouseClicked(new MouseButtonEvent(x + 0.5, y + 0.5, new MouseButtonInfo(0, 0)), false);
 		return true;
 	}
 
@@ -487,7 +487,7 @@ public final class SelfTest {
 	}
 
 	private static boolean shot(Minecraft mc, String name) {
-		Screenshot.grab(mc.gameDirectory, "spawnersearch-" + name + ".png", mc.getMainRenderTarget(), 1, message -> { });
+		Screenshot.grab(mc.gameDirectory, "spawnersearch-" + name + ".png", mc.gameRenderer.mainRenderTarget(), 1, message -> { });
 		NOTES.add("Screenshot " + name);
 		return true;
 	}
