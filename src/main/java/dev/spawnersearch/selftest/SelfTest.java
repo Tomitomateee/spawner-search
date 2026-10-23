@@ -97,7 +97,7 @@ public final class SelfTest {
 				build();
 			} else if (ticks == 20 * 30) {
 				// Still no world: show what's in the way (e.g. a confirmation screen).
-				SpawnerSearchClient.LOGGER.info("[SELFTEST] noch keine Welt, offen: {}", mc.screen == null ? "nichts" : mc.screen.getClass().getName());
+				SpawnerSearchClient.LOGGER.info("[SELFTEST] noch keine Welt, offen: {}", mc.gui.screen() == null ? "nichts" : mc.gui.screen().getClass().getName());
 				shot(mc, "00-keine-welt");
 			} else if (ticks > 20 * 240) {
 				started = true;
