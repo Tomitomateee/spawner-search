@@ -24,6 +24,8 @@ dependencies {
 // 1440x810 gives GUI scale 3 = 480x270, like a 1080p screen with "Auto".
 tasks.register('prodClient', net.fabricmc.loom.task.prod.ClientProductionRunTask) {
 	runDir = layout.projectDirectory.dir('run-prod')
+	// A test run is never "up to date".
+	outputs.upToDateWhen { false }
 	programArgs.addAll('--version', project.minecraft_version, '--accessToken', '0', '--username', 'Selbsttest')
 	if (project.hasProperty('selftest')) {
 		jvmArgs.add('-Dspawnersearch.selftest=full')

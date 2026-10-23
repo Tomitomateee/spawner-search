@@ -95,6 +95,10 @@ public final class SelfTest {
 			if (mc.player != null && mc.level != null && mc.gui.screen() == null && mc.gui.overlay() == null && ticks > 100) {
 				started = true;
 				build();
+			} else if (ticks == 20 * 30) {
+				// Still no world: show what's in the way (e.g. a confirmation screen).
+				SpawnerSearchClient.LOGGER.info("[SELFTEST] noch keine Welt, offen: {}", mc.screen == null ? "nichts" : mc.screen.getClass().getName());
+				shot(mc, "00-keine-welt");
 			} else if (ticks > 20 * 240) {
 				started = true;
 				FAILURES.add("Keine Welt innerhalb von 4 Minuten geladen - nichts getestet");
