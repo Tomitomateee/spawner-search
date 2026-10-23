@@ -5,8 +5,8 @@ import dev.spawnersearch.MarketConfig;
 import dev.spawnersearch.Spawners;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.PlayerFaceRenderer;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.PlayerFaceExtractor;
 import net.minecraft.client.multiplayer.PlayerInfo;
 
 import java.util.ArrayDeque;
@@ -63,7 +63,7 @@ public final class Banner {
 		return shown.size();
 	}
 
-	public static void render(GuiGraphics g, MarketConfig cfg) {
+	public static void render(GuiGraphicsExtractor g, MarketConfig cfg) {
 		long now = System.currentTimeMillis();
 		long life = cfg.bannerSeconds * 1000L;
 		shown.removeIf(s -> now - s.at > life);
@@ -94,7 +94,7 @@ public final class Banner {
 		}
 	}
 
-	private static void draw(GuiGraphics g, Font font, Theme t, Note n, int x, int y, float a, float progress) {
+	private static void draw(GuiGraphicsExtractor g, Font font, Theme t, Note n, int x, int y, float a, float progress) {
 		if (a <= 0) return;
 		Glass.shadow(g, x, y, W, H, 10, Math.round(110 * a));
 		ShapeCache.roundRectFaded(g, x, y, W, H, 10, t.pillTop() | 0xFF000000, t.pillBottom() | 0xFF000000, 0.96f * a);
@@ -114,8 +114,8 @@ public final class Banner {
 
 		// Line 1: what (and for how much).
 		int rw = n.right().isEmpty() ? 0 : font.width(n.right()) + 6;
-		g.drawString(font, clip(font, n.title(), right - tx - rw), tx, y + 6, text, false);
-		if (rw > 0) g.drawString(font, n.right(), right - rw + 6, y + 6, accent, false);
+		g.text(font, clip(font, n.title(), right - tx - rw), tx, y + 6, text, false);
+		if (rw > 0) g.text(font, n.right(), right - rw + 6, y + 6, accent, false);
 
 		// Line 2: tag, who, extra info on the right if there's room.
 		int ty = y + 17;
@@ -124,16 +124,16 @@ public final class Banner {
 			// The darker end of the color, so the white text stays readable on light themes.
 			int fill = Glass.alpha(n.tagSecond() ? t.secondBottom() : t.accentBottom(), a);
 			Glass.roundRect(g, tx, ty - 1, tw, 10, 5, fill);
-			g.drawString(font, n.tag(), tx + 4, ty, Glass.argb(Math.round(255 * a), 0xFFFFFF), true);
+			g.text(font, n.tag(), tx + 4, ty, Glass.argb(Math.round(255 * a), 0xFFFFFF), true);
 			tx += tw + 4;
 		}
 		String sub = clip(font, n.sub(), right - tx);
-		g.drawString(font, sub, tx, ty, soft, false);
+		g.text(font, sub, tx, ty, soft, false);
 		if (!n.subRight().isEmpty()) {
 			int srw = font.width(n.subRight());
 			if (tx + font.width(sub) + 6 + srw <= right) {
 				int color = n.subRightColor() == 0 ? soft : Glass.alpha(n.subRightColor(), a);
-				g.drawString(font, n.subRight(), right - srw, ty, color, false);
+				g.text(font, n.subRight(), right - srw, ty, color, false);
 			}
 		}
 
@@ -143,15 +143,15 @@ public final class Banner {
 	}
 
 	/** Player head from the tab list, else a colored letter (same as in the menu). */
-	private static void head(GuiGraphics g, Font font, Theme t, UUID uuid, String name, int x, int y, int size) {
+	private static void head(GuiGraphicsExtractor g, Font font, Theme t, UUID uuid, String name, int x, int y, int size) {
 		PlayerInfo info = uuid == null ? null : Market.tabInfo(uuid);
 		if (info != null) {
-			PlayerFaceRenderer.draw(g, info.getSkin(), x, y, size);
+			PlayerFaceExtractor.extractRenderState(g, info.getSkin(), x, y, size);
 			return;
 		}
 		Glass.roundRect(g, x, y, size, size, size / 4f, t.accentTop(), t.accentBottom());
 		String letter = name == null || name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase(Locale.ROOT);
-		g.drawString(font, letter, x + (size - font.width(letter)) / 2 + 1, y + (size - 8) / 2 + 1, 0xFFFFFFFF, false);
+		g.text(font, letter, x + (size - font.width(letter)) / 2 + 1, y + (size - 8) / 2 + 1, 0xFFFFFFFF, false);
 	}
 
 	private static String clip(Font font, String text, int maxWidth) {

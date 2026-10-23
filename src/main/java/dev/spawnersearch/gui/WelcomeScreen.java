@@ -3,7 +3,7 @@ package dev.spawnersearch.gui;
 import dev.spawnersearch.Clan;
 import dev.spawnersearch.Market;
 import net.minecraft.util.Util;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
@@ -37,13 +37,13 @@ public class WelcomeScreen extends Screen {
 	}
 
 	@Override
-	public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-		renderBlurredBackground(g);
+	public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+		extractBlurredBackground(g);
 		g.fillGradient(0, 0, width, height, 0x60000000, 0x80000000);
 	}
 
 	@Override
-	public void render(GuiGraphics g, int mx, int my, float pt) {
+	public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float pt) {
 		Theme t = Theme.current(market.config());
 		int text = t.text(), soft = t.textSoft();
 		x = (width - W) / 2;
@@ -60,7 +60,7 @@ public class WelcomeScreen extends Screen {
 		g.pose().pushMatrix();
 		g.pose().translate(x + W / 2f - font.width(title) * s / 2f, y + 16);
 		g.pose().scale(s, s);
-		g.drawString(font, title, 0, 0, t.accentTop() | 0xFF000000, false);
+		g.text(font, title, 0, 0, t.accentTop() | 0xFF000000, false);
 		g.pose().popMatrix();
 
 		String name = Market.myName();
@@ -79,7 +79,7 @@ public class WelcomeScreen extends Screen {
 		MutableComponent line = Component.literal(tag != null ? "Dein Clan: " : "Dein Name: ").withColor(soft);
 		if (tag != null) line.append(tag).append(" ");
 		line.append(Component.literal(name).withColor(WHITE));
-		g.drawString(font, line, x + (W - font.width(line)) / 2, y + 114, WHITE, false);
+		g.text(font, line, x + (W - font.width(line)) / 2, y + 114, WHITE, false);
 		if (market.clanInfoWaiting()) centered(g, "Warte auf die Antwort vom Server …", y + 126, t.textFaint());
 		String msg = market.message();
 		if (msg != null && !market.clanInfoWaiting()) centered(g, msg, y + 126, t.accentTop() | 0xFF000000);
@@ -96,7 +96,7 @@ public class WelcomeScreen extends Screen {
 		}
 		Glass.pill(g, x + 24 + bw, by, bw, 20, 0xFF7289DA, 0xFF5865F2, hover(mx, my, x + 24 + bw, by, bw, 20));
 		centered(g, "Discord", by + 6, WHITE, x + 24 + bw + bw / 2);
-		super.render(g, mx, my, pt);
+		super.extractRenderState(g, mx, my, pt);
 	}
 
 	@Override
@@ -125,12 +125,12 @@ public class WelcomeScreen extends Screen {
 		return super.mouseClicked(e, doubleClick);
 	}
 
-	private void centered(GuiGraphics g, String s, int y, int color) {
-		g.drawString(font, s, x + (W - font.width(s)) / 2, y, color, false);
+	private void centered(GuiGraphicsExtractor g, String s, int y, int color) {
+		g.text(font, s, x + (W - font.width(s)) / 2, y, color, false);
 	}
 
-	private void centered(GuiGraphics g, String s, int y, int color, int cx) {
-		g.drawString(font, s, cx - font.width(s) / 2, y, color, false);
+	private void centered(GuiGraphicsExtractor g, String s, int y, int color, int cx) {
+		g.text(font, s, cx - font.width(s) / 2, y, color, false);
 	}
 
 	private static boolean hover(int mx, int my, int x, int y, int w, int h) {

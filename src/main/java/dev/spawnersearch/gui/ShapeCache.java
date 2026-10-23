@@ -2,7 +2,7 @@ package dev.spawnersearch.gui;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
@@ -30,12 +30,12 @@ public final class ShapeCache {
 		return Math.max(1, (int) Math.ceil(Minecraft.getInstance().getWindow().getGuiScale()));
 	}
 
-	private static void draw(GuiGraphics g, String key, int x, int y, int w, int h, Shader shader) {
+	private static void draw(GuiGraphicsExtractor g, String key, int x, int y, int w, int h, Shader shader) {
 		draw(g, key, x, y, w, h, -1, shader);
 	}
 
 	/** {@code tint} is multiplied onto the cached texture, so e.g. opacity changes need no re-raster. */
-	private static void draw(GuiGraphics g, String key, int x, int y, int w, int h, int tint, Shader shader) {
+	private static void draw(GuiGraphicsExtractor g, String key, int x, int y, int w, int h, int tint, Shader shader) {
 		if (w <= 0 || h <= 0) return;
 		int s = scale();
 		key = key + "@" + s;
@@ -56,7 +56,7 @@ public final class ShapeCache {
 	}
 
 	/** Rounded rectangle whose overall alpha is applied as a tint instead of baked into the texture. */
-	static void roundRectFaded(GuiGraphics g, int x, int y, int w, int h, float r, int top, int bottom, float alpha) {
+	static void roundRectFaded(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int top, int bottom, float alpha) {
 		float rr = Math.min(r, Math.min(w, h) / 2f);
 		int s = scale();
 		int tint = (Math.round(clamp01(alpha) * 255) << 24) | 0xFFFFFF;
@@ -68,7 +68,7 @@ public final class ShapeCache {
 	}
 
 	/** Gear icon; {@code step} (0–15) rotates it through one tooth period. */
-	static void gear(GuiGraphics g, int x, int y, int size, int step, int color) {
+	static void gear(GuiGraphicsExtractor g, int x, int y, int size, int step, int color) {
 		int s = scale();
 		float rot = (float) (Math.floorMod(step, 16) / 16.0 * (Math.PI * 2 / 8));
 		float c = size / 2f;
@@ -212,7 +212,7 @@ public final class ShapeCache {
 
 	// ------------------------------------------------------------ shapes
 
-	static void roundRect(GuiGraphics g, int x, int y, int w, int h, float r, int top, int bottom) {
+	static void roundRect(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int top, int bottom) {
 		float rr = Math.min(r, Math.min(w, h) / 2f);
 		int s = scale();
 		draw(g, "rr" + w + "," + h + "," + rr + "," + top + "," + bottom, x, y, w, h, (px, py) -> {
@@ -222,7 +222,7 @@ public final class ShapeCache {
 		});
 	}
 
-	static void outline(GuiGraphics g, int x, int y, int w, int h, float r, int color) {
+	static void outline(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int color) {
 		float rr = Math.min(r, Math.min(w, h) / 2f);
 		int s = scale();
 		draw(g, "ol" + w + "," + h + "," + rr + "," + color, x, y, w, h, (px, py) -> {
@@ -234,7 +234,7 @@ public final class ShapeCache {
 	}
 
 	/** Soft shadow that fades out over a few pixels around the shape. */
-	static void shadow(GuiGraphics g, int x, int y, int w, int h, float r, int strength) {
+	static void shadow(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int strength) {
 		int pad = 6;
 		float rr = Math.min(r, Math.min(w, h) / 2f);
 		int tw = w + pad * 2, th = h + pad * 2;
@@ -247,7 +247,7 @@ public final class ShapeCache {
 	}
 
 	/** Radial gradient blob. */
-	static void blob(GuiGraphics g, int cx, int cy, int radius, int color) {
+	static void blob(GuiGraphicsExtractor g, int cx, int cy, int radius, int color) {
 		int d = radius * 2;
 		draw(g, "bl" + radius + "," + color, cx - radius, cy - radius, d, d, (px, py) -> {
 			float dist = (float) Math.hypot(px - radius, py - radius) / radius;
@@ -257,7 +257,7 @@ public final class ShapeCache {
 	}
 
 	/** Blob whose strength changes every frame: one cached texture, the alpha comes from the tint. */
-	static void glow(GuiGraphics g, int cx, int cy, int radius, int rgb, int alpha) {
+	static void glow(GuiGraphicsExtractor g, int cx, int cy, int radius, int rgb, int alpha) {
 		int color = 0xFF000000 | rgb;
 		int d = radius * 2;
 		draw(g, "bl" + radius + "," + color, cx - radius, cy - radius, d, d,

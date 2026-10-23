@@ -1,6 +1,6 @@
 package dev.spawnersearch.gui;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 /**
  * Drawing primitives for the liquid glass look: anti-aliased rounded rectangles built from
@@ -39,12 +39,12 @@ public final class Glass {
 		return r - (float) Math.sqrt(Math.max(0, r * r - d * d));
 	}
 
-	public static void roundRect(GuiGraphics g, int x, int y, int w, int h, float r, int color) {
+	public static void roundRect(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int color) {
 		roundRect(g, x, y, w, h, r, color, color);
 	}
 
 	/** Rounded rectangle with a vertical gradient from {@code top} to {@code bottom}. */
-	public static void roundRect(GuiGraphics g, int x, int y, int w, int h, float r, int top, int bottom) {
+	public static void roundRect(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int top, int bottom) {
 		if (w <= 0 || h <= 0) return;
 		if (w > 6 && h > 6) {
 			ShapeCache.roundRect(g, x, y, w, h, r, top, bottom);
@@ -74,7 +74,7 @@ public final class Glass {
 	}
 
 	/** 1px outline following the rounded shape. */
-	public static void roundOutline(GuiGraphics g, int x, int y, int w, int h, float r, int color) {
+	public static void roundOutline(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int color) {
 		if (w <= 1 || h <= 1) return;
 		if (w > 6 && h > 6) {
 			ShapeCache.outline(g, x, y, w, h, r, color);
@@ -94,18 +94,18 @@ public final class Glass {
 		}
 	}
 
-	public static void circle(GuiGraphics g, int x, int y, int d, int color) {
+	public static void circle(GuiGraphicsExtractor g, int x, int y, int d, int color) {
 		roundRect(g, x, y, d, d, d / 2f, color);
 	}
 
 	/** Soft drop shadow: a few stacked, slightly offset translucent shapes. */
-	public static void shadow(GuiGraphics g, int x, int y, int w, int h, float r, int strength) {
+	public static void shadow(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int strength) {
 		if (w <= 0 || h <= 0) return;
 		ShapeCache.shadow(g, x, y, w, h, r, strength);
 	}
 
 	/** A frosted glass surface with highlight rim, as used for cards and the main panel. */
-	public static void glass(GuiGraphics g, int x, int y, int w, int h, float r, int tintTop, int tintBottom) {
+	public static void glass(GuiGraphicsExtractor g, int x, int y, int w, int h, float r, int tintTop, int tintBottom) {
 		shadow(g, x, y, w, h, r, 60);
 		roundRect(g, x, y, w, h, r, tintTop, tintBottom);
 		// Inner sheen across the upper half.
@@ -114,7 +114,7 @@ public final class Glass {
 	}
 
 	/** A glossy, colored pill button like the purple and teal ones in the reference design. */
-	public static void pill(GuiGraphics g, int x, int y, int w, int h, int top, int bottom, boolean hovered) {
+	public static void pill(GuiGraphicsExtractor g, int x, int y, int w, int h, int top, int bottom, boolean hovered) {
 		float r = h / 2f;
 		shadow(g, x, y + 1, w, h, r, 90);
 		// Colored glow under the pill.
@@ -129,13 +129,13 @@ public final class Glass {
 	}
 
 	/** Radial blob made of stacked translucent circles, used for the pastel gradients. */
-	public static void blob(GuiGraphics g, int cx, int cy, int radius, int color) {
+	public static void blob(GuiGraphicsExtractor g, int cx, int cy, int radius, int color) {
 		ShapeCache.blob(g, cx, cy, radius, color);
 	}
 
 	// ------------------------------------------------------------ icons (drawn centered in a box)
 
-	public static void playIcon(GuiGraphics g, int cx, int cy, int size, int color) {
+	public static void playIcon(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
 		int h = size;
 		int top = cy - h / 2;
 		for (int row = 0; row < h; row++) {
@@ -145,13 +145,13 @@ public final class Glass {
 		}
 	}
 
-	public static void pauseIcon(GuiGraphics g, int cx, int cy, int size, int color) {
+	public static void pauseIcon(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
 		int bw = Math.max(2, size / 3);
 		g.fill(cx - bw - 1, cy - size / 2, cx - 1, cy + size / 2, color);
 		g.fill(cx + 1, cy - size / 2, cx + bw + 1, cy + size / 2, color);
 	}
 
-	public static void skipIcon(GuiGraphics g, int cx, int cy, int size, int color, boolean forward) {
+	public static void skipIcon(GuiGraphicsExtractor g, int cx, int cy, int size, int color, boolean forward) {
 		int h = size;
 		int top = cy - h / 2;
 		for (int row = 0; row < h; row++) {
@@ -164,34 +164,34 @@ public final class Glass {
 		else g.fill(cx - h / 2, top, cx - h / 2 + 2, top + h, color);
 	}
 
-	public static void plusIcon(GuiGraphics g, int cx, int cy, int size, int color) {
+	public static void plusIcon(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
 		g.fill(cx - size / 2, cy - 1, cx + size / 2, cy + 1, color);
 		g.fill(cx - 1, cy - size / 2, cx + 1, cy + size / 2, color);
 	}
 
-	public static void minusIcon(GuiGraphics g, int cx, int cy, int size, int color) {
+	public static void minusIcon(GuiGraphicsExtractor g, int cx, int cy, int size, int color) {
 		g.fill(cx - size / 2, cy, cx + size / 2, cy + 1, color);
 	}
 
-	public static void checkIcon(GuiGraphics g, int cx, int cy, int color) {
+	public static void checkIcon(GuiGraphicsExtractor g, int cx, int cy, int color) {
 		int[][] pts = {{-3, 0}, {-2, 1}, {-1, 2}, {0, 1}, {1, 0}, {2, -1}, {3, -2}};
 		for (int[] p : pts) g.fill(cx + p[0], cy + p[1], cx + p[0] + 1, cy + p[1] + 2, color);
 	}
 
-	public static void chevronIcon(GuiGraphics g, int cx, int cy, int color) {
+	public static void chevronIcon(GuiGraphicsExtractor g, int cx, int cy, int color) {
 		for (int i = -3; i <= 3; i++) {
 			int x = cx - 1 + (3 - Math.abs(i));
 			g.fill(x - 1, cy + i, x + 1, cy + i + 1, color);
 		}
 	}
 
-	public static void searchIcon(GuiGraphics g, int cx, int cy, int color) {
+	public static void searchIcon(GuiGraphicsExtractor g, int cx, int cy, int color) {
 		roundOutline(g, cx - 4, cy - 4, 7, 7, 3.5f, color);
 		for (int i = 0; i < 3; i++) g.fill(cx + 2 + i, cy + 2 + i, cx + 4 + i, cy + 3 + i, color);
 	}
 
 	/** Speaker with 0–2 sound waves for {@code level} (0..1); a cross when muted. */
-	public static void speakerIcon(GuiGraphics g, int cx, int cy, float level, int color) {
+	public static void speakerIcon(GuiGraphicsExtractor g, int cx, int cy, float level, int color) {
 		g.fill(cx - 5, cy - 2, cx - 3, cy + 2, color);
 		for (int i = 0; i < 3; i++) g.fill(cx - 3 + i, cy - 2 - i, cx - 2 + i, cy + 2 + i, color);
 		if (level <= 0.001f) {
@@ -211,7 +211,7 @@ public final class Glass {
 		}
 	}
 
-	public static void noteIcon(GuiGraphics g, int cx, int cy, int color) {
+	public static void noteIcon(GuiGraphicsExtractor g, int cx, int cy, int color) {
 		g.fill(cx, cy - 5, cx + 1, cy + 3, color);
 		g.fill(cx, cy - 5, cx + 4, cy - 4, color);
 		g.fill(cx + 3, cy - 5, cx + 4, cy - 2, color);

@@ -1,6 +1,6 @@
 package dev.spawnersearch;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
 
@@ -12,7 +12,7 @@ public final class Spawners {
 
 	public record Type(String key, String name, Identifier texture) {
 		/** Draws the spawner model in a {@code size}×{@code size} box. */
-		public void draw(GuiGraphics g, int x, int y, int size) {
+		public void draw(GuiGraphicsExtractor g, int x, int y, int size) {
 			g.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0, 0, size, size, size, size);
 		}
 	}

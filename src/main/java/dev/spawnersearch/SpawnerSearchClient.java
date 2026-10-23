@@ -8,7 +8,7 @@ import dev.spawnersearch.selftest.SelfTest;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
@@ -41,7 +41,7 @@ public class SpawnerSearchClient implements ClientModInitializer {
 		});
 		ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
 			if (screen instanceof MarketScreen) return;
-			ScreenEvents.afterRender(screen).register((s, g, mx, my, delta) -> {
+			ScreenEvents.afterExtract(screen).register((s, g, mx, my, delta) -> {
 				if (!market.config().bannerInMenus) return;
 				g.nextStratum();
 				Banner.render(g, market.config());
@@ -49,7 +49,7 @@ public class SpawnerSearchClient implements ClientModInitializer {
 		});
 
 		KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath(MOD_ID, "market"));
-		KeyMapping open = KeyBindingHelper.registerKeyBinding(
+		KeyMapping open = KeyMappingHelper.registerKeyMapping(
 				new KeyMapping("key." + MOD_ID + ".open", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_H, category));
 
 		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
